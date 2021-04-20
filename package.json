@@ -1,0 +1,59 @@
+{
+  "name": "test-adapter-converter",
+  "displayName": "Test Adapter Converter",
+  "description": "Converter extension from the Test Adapter UI to native VS Code testing",
+  "publisher": "ms-vscode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.55.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "enableProposedApi": true,
+  "contributes": {
+    "commands": [
+      {
+        "command": "test-adapter-converter.helloWorld",
+        "title": "Hello World"
+      }
+    ]
+  },
+  "extensionDependencies": [
+    "hbenl.vscode-test-explorer"
+  ],
+  "scripts": {
+    "vscode:prepublish": "npm run -S esbuild-base -- --minify",
+    "esbuild-base": "rimraf out && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs",
+    "build": "npm run -S esbuild-base -- --sourcemap",
+    "watch": "npm run -S esbuild-base -- --sourcemap --watch",
+    "fmt": "prettier --write \"src/**/*.ts\"&& npm run test -- --fix",
+    "test": "eslint src --ext ts",
+    "download-api": "vscode-dts dev",
+    "postdownload-api": "vscode-dts master",
+    "postinstall": "npm run download-api"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^4.14.1",
+    "@typescript-eslint/parser": "^4.14.1",
+    "esbuild": "^0.11.12",
+    "eslint": "^7.19.0",
+    "eslint-plugin-header": "^3.1.1",
+    "prettier": "^2.2.1",
+    "rimraf": "^3.0.2",
+    "typescript": "^4.1.3",
+    "vscode-dts": "^0.3.1",
+    "vscode-test": "^1.5.0",
+    "vscode-test-adapter-api": "^1.9.0"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true,
+    "tabWidth": 2,
+    "arrowParens": "avoid"
+  }
+}

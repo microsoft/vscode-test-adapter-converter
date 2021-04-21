@@ -29,6 +29,16 @@
   "extensionDependencies": [
     "hbenl.vscode-test-explorer"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/microsoft/vscode-test-adapter-converter.git"
+  },
+  "author": "Connor Peet <connor@peet.io>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/microsoft/vscode-test-adapter-converter/issues"
+  },
+  "homepage": "https://github.com/microsoft/vscode-test-adapter-converter#readme",
   "scripts": {
     "vscode:prepublish": "npm run -S esbuild-base -- --minify",
     "esbuild-base": "rimraf out && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",

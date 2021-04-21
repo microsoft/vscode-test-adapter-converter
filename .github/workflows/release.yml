@@ -14,6 +14,6 @@ jobs:
         with:
           node-version: ^14
       - run: yarn install --frozen-lockfile
-      - run: npx vsce publish -p $VSCE_TOKEN --yarn --force
+      - run: npx vsce publish -p $VSCE_TOKEN --yarn --noVerify
         env:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}

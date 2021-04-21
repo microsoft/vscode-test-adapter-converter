@@ -19,10 +19,12 @@ interface IMetadata {
 
 type ConverterTestItem = vscode.TestItem<IMetadata>;
 
+let rootIdCounter = 0;
+
 export class TestController implements vscode.TestController<IMetadata> {
   private readonly root: ConverterTestItem = vscode.test.createTestItem(
     {
-      id: 'test-adapter-root',
+      id: `test-adapter-root-${rootIdCounter++}`,
       label: 'Test Adapter',
       uri:
         this.adapter.workspaceFolder?.uri ??
@@ -129,6 +131,14 @@ export class TestController implements vscode.TestController<IMetadata> {
     }
 
     const task = vscode.test.createTestRunTask(options);
+    const queue: Iterable<ConverterTestItem>[] = [options.tests];
+    while (queue.length) {
+      for (const test of queue.pop()!) {
+        task.setState(test, vscode.TestResultState.Queued);
+        queue.push(test.children.values());
+      }
+    }
+
     this.tasksByRunId.set(started.testRunId ?? '', task);
     token.onCancellationRequested(() => this.adapter.cancel());
   }

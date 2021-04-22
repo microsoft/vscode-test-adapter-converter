@@ -48,6 +48,7 @@ export class TestController implements vscode.TestController<IMetadata> {
 
         if (evt.suite) {
           this.syncItemChildren(this.root, generationCounter++, [evt.suite]);
+          promptDisableExplorerUi(); // prompt the first time we discover tests
         }
       }),
       adapter.testStates(evt => {
@@ -120,7 +121,7 @@ export class TestController implements vscode.TestController<IMetadata> {
       if (!options.debug) {
         this.adapter.run(options.tests.map(t => t.id));
       } else if (this.adapter.debug) {
-        this.adapter.run(options.tests.map(t => t.id));
+        this.adapter.debug(options.tests.map(t => t.id));
       } else {
         resolve(undefined);
       }
@@ -245,4 +246,40 @@ const convertedStates = {
   skipped: vscode.TestResultState.Skipped,
   errored: vscode.TestResultState.Errored,
   completed: vscode.TestResultState.Unset,
+};
+
+const settings = [
+  'testExplorer.gutterDecoration',
+  'testExplorer.codeLens',
+  'testExplorer.errorDecoration',
+  'testExplorer.errorDecorationHover',
+];
+
+let shouldPromptForUiDisable = vscode.workspace.getConfiguration().get(settings[0]) !== false;
+
+const promptDisableExplorerUi = async () => {
+  if (!shouldPromptForUiDisable) {
+    return;
+  }
+
+  shouldPromptForUiDisable = false;
+  const yes = 'Yes';
+  const workspace = 'Only in this Workspace';
+  const no = 'No';
+
+  const result = await vscode.window.showInformationMessage(
+    'Thanks for trying out native VS Code testing! Would you like to disable the default Test Explorer extension UI?',
+    no,
+    yes,
+    workspace
+  );
+
+  if (result === yes || result === workspace) {
+    const target =
+      result === yes ? vscode.ConfigurationTarget.Global : vscode.ConfigurationTarget.Workspace;
+    const config = vscode.workspace.getConfiguration();
+    for (const setting of settings) {
+      config.update(setting, false, target);
+    }
+  }
 };

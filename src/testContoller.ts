@@ -35,7 +35,7 @@ export class TestController implements vscode.TestController<IMetadata> {
   );
 
   private readonly itemsById = new Map<string, ConverterTestItem>([[this.root.id, this.root]]);
-  private readonly tasksByRunId = new Map<string, vscode.TestRunTask<IMetadata>>();
+  private readonly tasksByRunId = new Map<string, vscode.TestRun<IMetadata>>();
   private readonly disposables: vscode.Disposable[] = [];
   private hasRequestedLoad = false;
 
@@ -131,7 +131,7 @@ export class TestController implements vscode.TestController<IMetadata> {
       return;
     }
 
-    const task = vscode.test.createTestRunTask(options);
+    const task = vscode.test.createTestRun(options);
     const queue: Iterable<ConverterTestItem>[] = [options.tests];
     while (queue.length) {
       for (const test of queue.pop()!) {
@@ -208,7 +208,7 @@ export class TestController implements vscode.TestController<IMetadata> {
   /**
    * TestEvent handler.
    */
-  private onTestEvent(task: vscode.TestRunTask<IMetadata>, evt: TestEvent) {
+  private onTestEvent(task: vscode.TestRun<IMetadata>, evt: TestEvent) {
     const id = typeof evt.test === 'string' ? evt.test : evt.test.id;
     const vscodeTest = this.itemsById.get(id);
     if (!vscodeTest) {

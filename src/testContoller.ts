@@ -109,6 +109,11 @@ export class TestController implements vscode.TestController<IMetadata> {
     options: vscode.TestRunRequest<IMetadata>,
     token: vscode.CancellationToken
   ): Promise<void> {
+    const tests =
+      options.tests.length === 1 && options.tests[0] === this.root
+        ? [...this.root.children.values()]
+        : options.tests;
+
     let listener: vscode.Disposable;
     const started = await new Promise<TestRunStartedEvent | undefined>(resolve => {
       listener = this.adapter.testStates(evt => {
@@ -119,9 +124,9 @@ export class TestController implements vscode.TestController<IMetadata> {
       });
 
       if (!options.debug) {
-        this.adapter.run(options.tests.map(t => t.id));
+        this.adapter.run(tests.map(t => t.id));
       } else if (this.adapter.debug) {
-        this.adapter.debug(options.tests.map(t => t.id));
+        this.adapter.debug(tests.map(t => t.id));
       } else {
         resolve(undefined);
       }
@@ -132,7 +137,7 @@ export class TestController implements vscode.TestController<IMetadata> {
     }
 
     const task = vscode.test.createTestRun(options);
-    const queue: Iterable<ConverterTestItem>[] = [options.tests];
+    const queue: Iterable<ConverterTestItem>[] = [tests];
     while (queue.length) {
       for (const test of queue.pop()!) {
         task.setState(test, vscode.TestResultState.Queued);

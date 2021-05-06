@@ -14,21 +14,26 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onCommand:testExplorerConverter.activate"
   ],
   "main": "./out/extension.js",
   "enableProposedApi": true,
   "contributes": {
     "commands": [
       {
-        "command": "test-adapter-converter.helloWorld",
-        "title": "Hello World"
+        "command": "testExplorerConverter.activate",
+        "title": "Activate Test Adapter Converter"
       }
-    ]
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "testExplorerConverter.activate",
+          "when": "false"
+        }
+      ]
+    }
   },
-  "extensionDependencies": [
-    "hbenl.vscode-test-explorer"
-  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/microsoft/vscode-test-adapter-converter.git"

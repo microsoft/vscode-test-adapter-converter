@@ -7,8 +7,10 @@
   "engines": {
     "vscode": "^1.55.0"
   },
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "categories": [
     "Other"

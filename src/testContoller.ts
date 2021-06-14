@@ -175,7 +175,7 @@ export class TestController implements vscode.TestController<IMetadata> {
 
     vscodeTest.description = item.description;
 
-    if (item.line) {
+    if (item.line !== undefined) {
       vscodeTest.range = new vscode.Range(item.line, 0, item.line + 1, 0);
     }
 

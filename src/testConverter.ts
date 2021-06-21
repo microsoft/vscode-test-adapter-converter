@@ -13,42 +13,51 @@ import {
 
 let generationCounter = 0;
 
-interface IMetadata {
+export interface ITestMetadata {
+  converter: TestConverter;
   generation: number;
 }
 
-type ConverterTestItem = vscode.TestItem<IMetadata>;
-
 let rootIdCounter = 0;
 
-export class TestController implements vscode.TestController<IMetadata> {
-  private readonly root: ConverterTestItem = vscode.test.createTestItem(
-    {
-      id: `test-adapter-root-${rootIdCounter++}`,
-      label: 'Test Adapter',
-      uri:
-        this.adapter.workspaceFolder?.uri ??
-        vscode.workspace.workspaceFolders?.[0]?.uri ??
-        vscode.Uri.file('/'),
-    },
-    { generation: 0 }
-  );
+export class TestConverter implements vscode.Disposable {
+  public readonly root: vscode.TestItem<ITestMetadata>;
 
-  private readonly itemsById = new Map<string, ConverterTestItem>([[this.root.id, this.root]]);
-  private readonly tasksByRunId = new Map<string, vscode.TestRun<IMetadata>>();
+  private readonly itemsById = new Map<string, vscode.TestItem<ITestMetadata>>();
+  private readonly tasksByRunId = new Map<string, vscode.TestRun<ITestMetadata>>();
   private readonly disposables: vscode.Disposable[] = [];
-  private hasRequestedLoad = false;
 
-  constructor(private readonly adapter: TestAdapter) {
+  constructor(
+    private readonly adapter: TestAdapter,
+    private readonly ctrl: vscode.TestController<ITestMetadata>
+  ) {
+    this.root = this.ctrl.createTestItem<ITestMetadata>(
+      `test-adapter-root-${rootIdCounter++}`,
+      'Test Adapter',
+      this.ctrl.root,
+      undefined,
+      { generation: 0, converter: this }
+    );
+    this.root.debuggable = true;
+    this.root.status = vscode.TestItemStatus.Pending;
+
+    this.itemsById.set(this.root.id, this.root);
+
     this.disposables.push(
-      adapter.tests(evt => {
-        if (evt.type !== 'finished') {
-          return;
-        }
+      this.root,
 
-        if (evt.suite) {
-          this.syncItemChildren(this.root, generationCounter++, [evt.suite]);
-          promptDisableExplorerUi(); // prompt the first time we discover tests
+      adapter.tests(evt => {
+        switch (evt.type) {
+          case 'finished':
+            this.root.status = vscode.TestItemStatus.Resolved;
+            if (evt.suite) {
+              this.syncItemChildren(this.root, generationCounter++, [evt.suite]);
+              promptDisableExplorerUi(); // prompt the first time we discover tests
+            }
+            break;
+          case 'started':
+            this.root.status = vscode.TestItemStatus.Pending;
+            break;
         }
       }),
       adapter.testStates(evt => {
@@ -77,42 +86,27 @@ export class TestController implements vscode.TestController<IMetadata> {
         })
       );
     }
+
+    setTimeout(() => this.adapter.load(), 1);
   }
 
-  /**
-   * @inheritdoc
-   */
-  public createWorkspaceTestRoot(workspace: vscode.WorkspaceFolder): ConverterTestItem | undefined {
-    // Return nothing if the adapter is tied to a different workspace folder,
-    // or if it's not tied to a folder and this isn't the first folder
-    // (show tests there arbitrarily)
-    if (this.adapter.workspaceFolder) {
-      if (workspace !== this.adapter.workspaceFolder) {
-        return undefined;
-      }
-    } else if (workspace !== vscode.workspace.workspaceFolders?.[0]) {
-      return undefined;
-    }
-
-    if (!this.hasRequestedLoad) {
-      this.adapter.load();
-      this.hasRequestedLoad = true;
-    }
-
-    return this.root;
+  public refresh() {
+    this.adapter.load();
   }
 
-  /**
-   * @inheritdoc
-   */
-  public async runTests(
-    options: vscode.TestRunRequest<IMetadata>,
+  public dispose() {
+    this.disposables.forEach(d => d.dispose());
+  }
+
+  public async run(
+    run: vscode.TestRun<ITestMetadata>,
+    testsToRun: vscode.TestItem<ITestMetadata>[],
+    debug: boolean,
     token: vscode.CancellationToken
   ): Promise<void> {
-    const tests =
-      options.tests.length === 1 && options.tests[0] === this.root
-        ? [...this.root.children.values()]
-        : options.tests;
+    if (testsToRun.includes(this.root)) {
+      testsToRun = [...this.root.children.values()];
+    }
 
     let listener: vscode.Disposable;
     const started = await new Promise<TestRunStartedEvent | undefined>(resolve => {
@@ -123,10 +117,10 @@ export class TestController implements vscode.TestController<IMetadata> {
         }
       });
 
-      if (!options.debug) {
-        this.adapter.run(tests.map(t => t.id));
+      if (!debug) {
+        this.adapter.run(testsToRun.map(t => t.id));
       } else if (this.adapter.debug) {
-        this.adapter.debug(tests.map(t => t.id));
+        this.adapter.debug(testsToRun.map(t => t.id));
       } else {
         resolve(undefined);
       }
@@ -135,17 +129,15 @@ export class TestController implements vscode.TestController<IMetadata> {
     if (!started) {
       return;
     }
-
-    const task = vscode.test.createTestRun(options);
-    const queue: Iterable<ConverterTestItem>[] = [tests];
+    const queue: Iterable<vscode.TestItem<ITestMetadata>>[] = [testsToRun];
     while (queue.length) {
       for (const test of queue.pop()!) {
-        task.setState(test, vscode.TestResultState.Queued);
+        run.setState(test, vscode.TestResultState.Queued);
         queue.push(test.children.values());
       }
     }
 
-    this.tasksByRunId.set(started.testRunId ?? '', task);
+    this.tasksByRunId.set(started.testRunId ?? '', run);
     token.onCancellationRequested(() => this.adapter.cancel());
   }
 
@@ -153,24 +145,27 @@ export class TestController implements vscode.TestController<IMetadata> {
    * Recursively adds an item and its children from the adapter into the VS
    * Code test tree.
    */
-  private addItem(item: TestSuiteInfo | TestInfo, generation: number, parent: ConverterTestItem) {
-    let vscodeTest = parent.children.get(item.id) as ConverterTestItem | undefined;
+  private addItem(
+    item: TestSuiteInfo | TestInfo,
+    generation: number,
+    parent: vscode.TestItem<ITestMetadata>
+  ) {
+    let vscodeTest = parent.children.get(item.id) as vscode.TestItem<ITestMetadata> | undefined;
     if (vscodeTest) {
       vscodeTest.data.generation = generation;
     } else {
-      vscodeTest = vscode.test.createTestItem(
+      vscodeTest = this.ctrl.createTestItem<ITestMetadata>(
+        item.id,
+        item.label,
+        parent,
+        item.file ? fileToUri(item.file) : parent.uri,
         {
-          id: item.id,
-          label: item.label,
-          uri: item.file ? fileToUri(item.file) : parent.uri,
-        },
-        {
+          converter: this,
           generation,
         }
       );
 
       this.itemsById.set(item.id, vscodeTest);
-      parent.addChild(vscodeTest);
     }
 
     vscodeTest.description = item.description;
@@ -194,7 +189,7 @@ export class TestController implements vscode.TestController<IMetadata> {
    * Ensures the given children are set as the children of the test item.
    */
   private syncItemChildren(
-    vscodeTest: ConverterTestItem,
+    vscodeTest: vscode.TestItem<ITestMetadata>,
     generation: number,
     children: Iterable<TestSuiteInfo | TestInfo>
   ) {
@@ -213,7 +208,7 @@ export class TestController implements vscode.TestController<IMetadata> {
   /**
    * TestEvent handler.
    */
-  private onTestEvent(task: vscode.TestRun<IMetadata>, evt: TestEvent) {
+  private onTestEvent(task: vscode.TestRun<ITestMetadata>, evt: TestEvent) {
     const id = typeof evt.test === 'string' ? evt.test : evt.test.id;
     const vscodeTest = this.itemsById.get(id);
     if (!vscodeTest) {
@@ -228,10 +223,10 @@ export class TestController implements vscode.TestController<IMetadata> {
 
     for (const decoration of evt.decorations ?? []) {
       const message = new vscode.TestMessage(decoration.message);
-      message.location = new vscode.Location(
-        decoration.file ? fileToUri(decoration.file) : vscodeTest.uri,
-        new vscode.Position(decoration.line, 0)
-      );
+      const uri = decoration.file ? fileToUri(decoration.file) : vscodeTest.uri;
+      if (uri) {
+        message.location = new vscode.Location(uri, new vscode.Position(decoration.line, 0));
+      }
 
       task.appendMessage(vscodeTest, message);
     }

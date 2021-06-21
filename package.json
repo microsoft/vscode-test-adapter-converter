@@ -5,7 +5,7 @@
   "publisher": "ms-vscode",
   "version": "0.0.10",
   "engines": {
-    "vscode": "^1.55.0"
+    "vscode": "^1.58.0-20210622"
   },
   "capabilities": {
     "untrustedWorkspaces": {
@@ -25,6 +25,12 @@
       {
         "command": "testExplorerConverter.activate",
         "title": "Activate Test Adapter Converter"
+      },
+      {
+        "title": "Refresh Adapter Tests",
+        "command": "testExplorerConverter.refreshAdapter",
+        "category": "Test",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -32,6 +38,17 @@
         {
           "command": "testExplorerConverter.activate",
           "when": "false"
+        },
+        {
+          "command": "testExplorerConverter.refreshAdapter",
+          "when": "testExplorerVisible != true"
+        }
+      ],
+      "testing/item/context": [
+        {
+          "command": "testExplorerConverter.refreshAdapter",
+          "when": "testId =~ /^test-adapter-root-/",
+          "group": "inline"
         }
       ]
     }

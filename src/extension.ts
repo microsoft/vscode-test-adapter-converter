@@ -4,9 +4,11 @@
 
 import * as vscode from 'vscode';
 import { testExplorerExtensionId, TestHub } from 'vscode-test-adapter-api';
-import { TestControllerFactory } from './testControllerFactory';
+import { TestConverterFactory } from './testConverterFactory';
 
 export function activate(context: vscode.ExtensionContext) {
+  let factory: TestConverterFactory | undefined;
+
   context.subscriptions.push(
     vscode.commands.registerCommand('testExplorerConverter.activate', () => {
       const testExplorerExtension = vscode.extensions.getExtension<TestHub>(
@@ -17,15 +19,19 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       const testHub = testExplorerExtension.exports;
-      const factory = new TestControllerFactory();
+      factory = new TestConverterFactory();
       context.subscriptions.push(factory);
 
       testHub.registerTestController(factory);
       context.subscriptions.push({
         dispose() {
-          testHub.unregisterTestController(factory);
+          testHub.unregisterTestController(factory!);
         },
       });
+    }),
+
+    vscode.commands.registerCommand('testExplorerConverter.refreshAdapter', testId => {
+      factory?.refresh(testId);
     })
   );
 }

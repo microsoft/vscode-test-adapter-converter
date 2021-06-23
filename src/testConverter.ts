@@ -39,7 +39,6 @@ export class TestConverter implements vscode.Disposable {
       { generation: 0, converter: this }
     );
     this.root.debuggable = true;
-    this.root.status = vscode.TestItemStatus.Pending;
 
     this.itemsById.set(this.root.id, this.root);
 
@@ -49,14 +48,14 @@ export class TestConverter implements vscode.Disposable {
       adapter.tests(evt => {
         switch (evt.type) {
           case 'finished':
-            this.root.status = vscode.TestItemStatus.Resolved;
+            this.root.busy = false;
             if (evt.suite) {
               this.syncItemChildren(this.root, generationCounter++, [evt.suite]);
               promptDisableExplorerUi(); // prompt the first time we discover tests
             }
             break;
           case 'started':
-            this.root.status = vscode.TestItemStatus.Pending;
+            this.root.busy = true;
             break;
         }
       }),
@@ -90,8 +89,10 @@ export class TestConverter implements vscode.Disposable {
     setTimeout(() => this.adapter.load(), 1);
   }
 
-  public refresh() {
-    this.adapter.load();
+  public async refresh() {
+    this.root.busy = true;
+    await this.adapter.load();
+    this.root.busy = false;
   }
 
   public dispose() {

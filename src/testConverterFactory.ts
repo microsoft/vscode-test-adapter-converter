@@ -36,9 +36,9 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
     }
   }
 
-  public refresh(testId?: string) {
+  public refresh(test?: vscode.TestItem<void>) {
     for (const converter of this.converters.values()) {
-      if (!testId || converter.root.id === testId) {
+      if (!test || converter.root.id === test.id) {
         converter.refresh();
       }
     }

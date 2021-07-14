@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import { TestAdapter, TestController as AdapterTestController } from 'vscode-test-adapter-api';
-import { ITestMetadata, TestConverter } from './testConverter';
+import { metadata, TestConverter } from './testConverter';
 
 export class TestConverterFactory implements AdapterTestController, vscode.Disposable {
   private readonly converters = new Map<TestAdapter, TestConverter>();
@@ -36,7 +36,7 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
     }
   }
 
-  public refresh(test?: vscode.TestItem<void>) {
+  public refresh(test?: vscode.TestItem) {
     for (const converter of this.converters.values()) {
       if (!test || converter.root.id === test.id) {
         converter.refresh();
@@ -45,11 +45,10 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
   }
 
   private makeTestController() {
-    const ctrl = vscode.test.createTestController<ITestMetadata>(
-      'ms-vscode.test-adapter-converter'
+    const ctrl = vscode.test.createTestController(
+      'ms-vscode.test-adapter-converter',
     );
     ctrl.root.label = 'Test Adapter Converter';
-    ctrl.root.debuggable = true;
 
     ctrl.runHandler = (request, token) => {
       if (request.tests.includes(ctrl.root)) {
@@ -59,13 +58,14 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
         return;
       }
 
-      const involved = new Map<TestConverter, vscode.TestItem<ITestMetadata>[]>();
+      const involved = new Map<TestConverter, vscode.TestItem[]>();
       for (const test of request.tests) {
-        const i = involved.get(test.data.converter);
+        const converter = metadata.get(test)!.converter;
+        const i = involved.get(converter);
         if (i) {
           i.push(test);
         } else {
-          involved.set(test.data.converter, [test]);
+          involved.set(converter, [test]);
         }
       }
 

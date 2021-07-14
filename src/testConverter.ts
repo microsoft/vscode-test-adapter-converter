@@ -8,10 +8,12 @@ import {
   TestEvent,
   TestInfo,
   TestRunStartedEvent,
-  TestSuiteInfo,
+  TestSuiteInfo
 } from 'vscode-test-adapter-api';
 
 let generationCounter = 0;
+
+export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
 
 export interface ITestMetadata {
   converter: TestConverter;
@@ -21,25 +23,24 @@ export interface ITestMetadata {
 let rootIdCounter = 0;
 
 export class TestConverter implements vscode.Disposable {
-  public readonly root: vscode.TestItem<ITestMetadata>;
+  public readonly root: vscode.TestItem;
 
-  private readonly itemsById = new Map<string, vscode.TestItem<ITestMetadata>>();
-  private readonly tasksByRunId = new Map<string, vscode.TestRun<ITestMetadata>>();
+  private readonly itemsById = new Map<string, vscode.TestItem>();
+  private readonly tasksByRunId = new Map<string, vscode.TestRun>();
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
     private readonly adapter: TestAdapter,
-    private readonly ctrl: vscode.TestController<ITestMetadata>
+    private readonly ctrl: vscode.TestController
   ) {
-    this.root = this.ctrl.createTestItem<ITestMetadata>(
+    this.root = this.ctrl.createTestItem(
       `test-adapter-root-${rootIdCounter++}`,
       'Test Adapter',
       this.ctrl.root,
       undefined,
-      { generation: 0, converter: this }
     );
-    this.root.debuggable = true;
-
+    metadata.set(this.root,
+      { generation: 0, converter: this });
     this.itemsById.set(this.root.id, this.root);
 
     this.disposables.push(
@@ -76,16 +77,6 @@ export class TestConverter implements vscode.Disposable {
       })
     );
 
-    if (adapter.retire) {
-      this.disposables.push(
-        adapter.retire(evt => {
-          for (const test of evt.tests ?? [this.root.id]) {
-            this.itemsById.get(test)?.invalidate();
-          }
-        })
-      );
-    }
-
     setTimeout(() => this.adapter.load(), 1);
   }
 
@@ -100,8 +91,8 @@ export class TestConverter implements vscode.Disposable {
   }
 
   public async run(
-    run: vscode.TestRun<ITestMetadata>,
-    testsToRun: vscode.TestItem<ITestMetadata>[],
+    run: vscode.TestRun,
+    testsToRun: vscode.TestItem[],
     debug: boolean,
     token: vscode.CancellationToken
   ): Promise<void> {
@@ -130,7 +121,7 @@ export class TestConverter implements vscode.Disposable {
     if (!started) {
       return;
     }
-    const queue: Iterable<vscode.TestItem<ITestMetadata>>[] = [testsToRun];
+    const queue: Iterable<vscode.TestItem>[] = [testsToRun];
     while (queue.length) {
       for (const test of queue.pop()!) {
         run.setState(test, vscode.TestResultState.Queued);
@@ -149,22 +140,19 @@ export class TestConverter implements vscode.Disposable {
   private addItem(
     item: TestSuiteInfo | TestInfo,
     generation: number,
-    parent: vscode.TestItem<ITestMetadata>
+    parent: vscode.TestItem
   ) {
-    let vscodeTest = parent.children.get(item.id) as vscode.TestItem<ITestMetadata> | undefined;
+    let vscodeTest = parent.children.get(item.id) as vscode.TestItem | undefined;
     if (vscodeTest) {
-      vscodeTest.data.generation = generation;
+      metadata.get(vscodeTest)!.generation = generation;
     } else {
-      vscodeTest = this.ctrl.createTestItem<ITestMetadata>(
+      vscodeTest = this.ctrl.createTestItem(
         item.id,
         item.label,
         parent,
         item.file ? fileToUri(item.file) : parent.uri,
-        {
-          converter: this,
-          generation,
-        }
       );
+      metadata.set(vscodeTest,  { converter: this, generation });
 
       this.itemsById.set(item.id, vscodeTest);
     }
@@ -174,9 +162,6 @@ export class TestConverter implements vscode.Disposable {
     if (item.line !== undefined) {
       vscodeTest.range = new vscode.Range(item.line, 0, item.line + 1, 0);
     }
-
-    vscodeTest.description = item.description;
-    vscodeTest.debuggable = !!this.adapter.debug;
 
     if (item.errored) {
       vscodeTest.error = item.message;
@@ -190,7 +175,7 @@ export class TestConverter implements vscode.Disposable {
    * Ensures the given children are set as the children of the test item.
    */
   private syncItemChildren(
-    vscodeTest: vscode.TestItem<ITestMetadata>,
+    vscodeTest: vscode.TestItem,
     generation: number,
     children: Iterable<TestSuiteInfo | TestInfo>
   ) {
@@ -199,7 +184,7 @@ export class TestConverter implements vscode.Disposable {
     }
 
     for (const child of vscodeTest.children.values()) {
-      if (child.data.generation !== generation) {
+      if (metadata.get(child)!.generation !== generation) {
         child.dispose();
         this.itemsById.delete(child.id);
       }
@@ -209,7 +194,7 @@ export class TestConverter implements vscode.Disposable {
   /**
    * TestEvent handler.
    */
-  private onTestEvent(task: vscode.TestRun<ITestMetadata>, evt: TestEvent) {
+  private onTestEvent(task: vscode.TestRun, evt: TestEvent) {
     const id = typeof evt.test === 'string' ? evt.test : evt.test.id;
     const vscodeTest = this.itemsById.get(id);
     if (!vscodeTest) {

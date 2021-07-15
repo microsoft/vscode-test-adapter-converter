@@ -8,16 +8,13 @@ import {
   TestEvent,
   TestInfo,
   TestRunStartedEvent,
-  TestSuiteInfo
+  TestSuiteInfo,
 } from 'vscode-test-adapter-api';
-
-let generationCounter = 0;
 
 export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
 
 export interface ITestMetadata {
   converter: TestConverter;
-  generation: number;
 }
 
 let rootIdCounter = 0;
@@ -29,29 +26,26 @@ export class TestConverter implements vscode.Disposable {
   private readonly tasksByRunId = new Map<string, vscode.TestRun>();
   private readonly disposables: vscode.Disposable[] = [];
 
-  constructor(
-    private readonly adapter: TestAdapter,
-    private readonly ctrl: vscode.TestController
-  ) {
-    this.root = this.ctrl.createTestItem(
+  constructor(private readonly adapter: TestAdapter, private readonly ctrl: vscode.TestController) {
+    this.root = vscode.test.createTestItem(
       `test-adapter-root-${rootIdCounter++}`,
       'Test Adapter',
-      this.ctrl.root,
-      undefined,
+      undefined
     );
-    metadata.set(this.root,
-      { generation: 0, converter: this });
+    ctrl.items.add(this.root);
+    metadata.set(this.root, { converter: this });
     this.itemsById.set(this.root.id, this.root);
 
     this.disposables.push(
-      this.root,
+      { dispose: () => ctrl.items.remove(this.root.id) },
 
       adapter.tests(evt => {
         switch (evt.type) {
           case 'finished':
             this.root.busy = false;
             if (evt.suite) {
-              this.syncItemChildren(this.root, generationCounter++, [evt.suite]);
+              this.root.label = evt.suite.label;
+              this.syncItemChildren(this.root, evt.suite.children);
               promptDisableExplorerUi(); // prompt the first time we discover tests
             }
             break;
@@ -92,12 +86,12 @@ export class TestConverter implements vscode.Disposable {
 
   public async run(
     run: vscode.TestRun,
-    testsToRun: vscode.TestItem[],
+    testsToRun: readonly vscode.TestItem[] | undefined,
     debug: boolean,
     token: vscode.CancellationToken
   ): Promise<void> {
-    if (testsToRun.includes(this.root)) {
-      testsToRun = [...this.root.children.values()];
+    if (!testsToRun || testsToRun.includes(this.root)) {
+      testsToRun = this.root.children.all;
     }
 
     let listener: vscode.Disposable;
@@ -110,9 +104,9 @@ export class TestConverter implements vscode.Disposable {
       });
 
       if (!debug) {
-        this.adapter.run(testsToRun.map(t => t.id));
+        this.adapter.run(testsToRun!.map(t => t.id));
       } else if (this.adapter.debug) {
-        this.adapter.debug(testsToRun.map(t => t.id));
+        this.adapter.debug(testsToRun!.map(t => t.id));
       } else {
         resolve(undefined);
       }
@@ -125,7 +119,7 @@ export class TestConverter implements vscode.Disposable {
     while (queue.length) {
       for (const test of queue.pop()!) {
         run.setState(test, vscode.TestResultState.Queued);
-        queue.push(test.children.values());
+        queue.push(test.children.all);
       }
     }
 
@@ -134,61 +128,33 @@ export class TestConverter implements vscode.Disposable {
   }
 
   /**
-   * Recursively adds an item and its children from the adapter into the VS
-   * Code test tree.
-   */
-  private addItem(
-    item: TestSuiteInfo | TestInfo,
-    generation: number,
-    parent: vscode.TestItem
-  ) {
-    let vscodeTest = parent.children.get(item.id) as vscode.TestItem | undefined;
-    if (vscodeTest) {
-      metadata.get(vscodeTest)!.generation = generation;
-    } else {
-      vscodeTest = this.ctrl.createTestItem(
-        item.id,
-        item.label,
-        parent,
-        item.file ? fileToUri(item.file) : parent.uri,
-      );
-      metadata.set(vscodeTest,  { converter: this, generation });
-
-      this.itemsById.set(item.id, vscodeTest);
-    }
-
-    vscodeTest.description = item.description;
-
-    if (item.line !== undefined) {
-      vscodeTest.range = new vscode.Range(item.line, 0, item.line + 1, 0);
-    }
-
-    if (item.errored) {
-      vscodeTest.error = item.message;
-    }
-
-    this.syncItemChildren(vscodeTest, generation, 'children' in item ? item.children : []);
-    return vscodeTest;
-  }
-
-  /**
    * Ensures the given children are set as the children of the test item.
    */
-  private syncItemChildren(
-    vscodeTest: vscode.TestItem,
-    generation: number,
-    children: Iterable<TestSuiteInfo | TestInfo>
-  ) {
-    for (const child of children) {
-      this.addItem(child, generation, vscodeTest);
-    }
+  private syncItemChildren(parentTest: vscode.TestItem, children: (TestSuiteInfo | TestInfo)[]) {
+    parentTest.children.all = children.map(item => {
+      const childTest = vscode.test.createTestItem(
+        item.id,
+        item.label,
+        item.file ? fileToUri(item.file) : parentTest.uri
+      );
+      metadata.set(childTest, { converter: this });
+      this.itemsById.set(item.id, childTest);
+      childTest.description = item.description;
 
-    for (const child of vscodeTest.children.values()) {
-      if (metadata.get(child)!.generation !== generation) {
-        child.dispose();
-        this.itemsById.delete(child.id);
+      if (item.line !== undefined) {
+        childTest.range = new vscode.Range(item.line, 0, item.line + 1, 0);
       }
-    }
+
+      if (item.errored) {
+        childTest.error = item.message;
+      }
+
+      if ('children' in item) {
+        this.syncItemChildren(childTest, item.children);
+      }
+
+      return childTest;
+    });
   }
 
   /**

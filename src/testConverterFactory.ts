@@ -49,10 +49,9 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
       'ms-vscode.test-adapter-converter',
       'Test Adapter Converter',
     );
-    ctrl.root.label = 'Test Adapter Converter';
 
     const makeRunHandler = (debug: boolean): vscode.TestRunHandler => (request, token) => {
-      if (request.tests.includes(ctrl.root)) {
+      if (!request.include) {
         for (const converter of this.converters.values()) {
           converter.run(ctrl.createTestRun(request), [converter.root], debug, token);
         }
@@ -60,7 +59,7 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
       }
 
       const involved = new Map<TestConverter, vscode.TestItem[]>();
-      for (const test of request.tests) {
+      for (const test of request.include) {
         const converter = metadata.get(test)!.converter;
         const i = involved.get(converter);
         if (i) {

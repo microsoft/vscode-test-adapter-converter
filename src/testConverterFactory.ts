@@ -74,8 +74,8 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
       }
     };
     
-    ctrl.createRunConfiguration('Run', vscode.TestRunConfigurationGroup.Run, makeRunHandler(false), true);
-    ctrl.createRunConfiguration('Debug', vscode.TestRunConfigurationGroup.Debug, makeRunHandler(true), true);
+    ctrl.createRunProfile('Run', vscode.TestRunProfileGroup.Run, makeRunHandler(false), true);
+    ctrl.createRunProfile('Debug', vscode.TestRunProfileGroup.Debug, makeRunHandler(true), true);
 
     return ctrl;
   }

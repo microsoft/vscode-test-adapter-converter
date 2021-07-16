@@ -8,7 +8,7 @@ import {
   TestEvent,
   TestInfo,
   TestRunStartedEvent,
-  TestSuiteInfo,
+  TestSuiteInfo
 } from 'vscode-test-adapter-api';
 
 export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
@@ -37,7 +37,7 @@ export class TestConverter implements vscode.Disposable {
     this.itemsById.set(this.root.id, this.root);
 
     this.disposables.push(
-      { dispose: () => ctrl.items.remove(this.root.id) },
+      { dispose: () => ctrl.items.delete(this.root.id) },
 
       adapter.tests(evt => {
         switch (evt.type) {
@@ -91,7 +91,7 @@ export class TestConverter implements vscode.Disposable {
     token: vscode.CancellationToken
   ): Promise<void> {
     if (!testsToRun || testsToRun.includes(this.root)) {
-      testsToRun = this.root.children.all;
+      testsToRun = [...this.root.children];
     }
 
     let listener: vscode.Disposable;
@@ -119,7 +119,7 @@ export class TestConverter implements vscode.Disposable {
     while (queue.length) {
       for (const test of queue.pop()!) {
         run.setState(test, vscode.TestResultState.Queued);
-        queue.push(test.children.all);
+        queue.push(test.children);
       }
     }
 
@@ -131,7 +131,7 @@ export class TestConverter implements vscode.Disposable {
    * Ensures the given children are set as the children of the test item.
    */
   private syncItemChildren(parentTest: vscode.TestItem, children: (TestSuiteInfo | TestInfo)[]) {
-    parentTest.children.all = children.map(item => {
+    parentTest.children.set(children.map(item => {
       const childTest = vscode.test.createTestItem(
         item.id,
         item.label,
@@ -154,7 +154,7 @@ export class TestConverter implements vscode.Disposable {
       }
 
       return childTest;
-    });
+    }));
   }
 
   /**

@@ -40,15 +40,14 @@
           "when": "false"
         },
         {
-          "command": "testExplorerConverter.refreshAdapter",
-          "when": "testExplorerVisible != true"
+          "command": "testExplorerConverter.refreshAdapter"
         }
       ],
-      "testing/item/context": [
+      "view/title": [
         {
           "command": "testExplorerConverter.refreshAdapter",
-          "when": "testId =~ /^test-adapter-root-/",
-          "group": "inline"
+          "when": "view == workbench.view.testing && hasTestConverterTests",
+          "group": "navigation"
         }
       ]
     }

@@ -8,7 +8,7 @@ import {
   TestEvent,
   TestInfo,
   TestRunStartedEvent,
-  TestSuiteInfo
+  TestSuiteInfo,
 } from 'vscode-test-adapter-api';
 
 export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
@@ -17,40 +17,41 @@ export interface ITestMetadata {
   converter: TestConverter;
 }
 
-let rootIdCounter = 0;
+const testViewId = 'workbench.view.extension.test';
 
 export class TestConverter implements vscode.Disposable {
-  public readonly root: vscode.TestItem;
-
+  private controller?: vscode.TestController;
+  private doneDiscovery?: () => void;
   private readonly itemsById = new Map<string, vscode.TestItem>();
   private readonly tasksByRunId = new Map<string, vscode.TestRun>();
   private readonly disposables: vscode.Disposable[] = [];
 
-  constructor(private readonly adapter: TestAdapter, private readonly ctrl: vscode.TestController) {
-    this.root = vscode.test.createTestItem(
-      `test-adapter-root-${rootIdCounter++}`,
-      'Test Adapter',
-      undefined
-    );
-    ctrl.items.add(this.root);
-    metadata.set(this.root, { converter: this });
-    this.itemsById.set(this.root.id, this.root);
+  public get controllerId() {
+    return this.controller?.id;
+  }
 
+  constructor(private readonly adapter: TestAdapter) {
     this.disposables.push(
-      { dispose: () => ctrl.items.delete(this.root.id) },
-
       adapter.tests(evt => {
         switch (evt.type) {
           case 'finished':
-            this.root.busy = false;
+            this.doneDiscovery?.();
+            this.doneDiscovery = undefined;
             if (evt.suite) {
-              this.root.label = evt.suite.label;
-              this.syncItemChildren(this.root, evt.suite.children);
-              promptDisableExplorerUi(); // prompt the first time we discover tests
+              this.syncTopLevel(evt.suite);
             }
             break;
+
           case 'started':
-            this.root.busy = true;
+            if (!this.doneDiscovery) {
+              vscode.window.withProgress(
+                { location: { viewId: testViewId } },
+                () =>
+                  new Promise<void>(resolve => {
+                    this.doneDiscovery = resolve;
+                  })
+              );
+            }
             break;
         }
       }),
@@ -75,9 +76,9 @@ export class TestConverter implements vscode.Disposable {
   }
 
   public async refresh() {
-    this.root.busy = true;
-    await this.adapter.load();
-    this.root.busy = false;
+    await vscode.window.withProgress({ location: { viewId: testViewId } }, () =>
+      this.adapter.load()
+    );
   }
 
   public dispose() {
@@ -90,8 +91,12 @@ export class TestConverter implements vscode.Disposable {
     debug: boolean,
     token: vscode.CancellationToken
   ): Promise<void> {
-    if (!testsToRun || testsToRun.includes(this.root)) {
-      testsToRun = [...this.root.children];
+    if (!this.controller) {
+      return;
+    }
+
+    if (!testsToRun) {
+      testsToRun = gatherChildren(this.controller.items);
     }
 
     let listener: vscode.Disposable;
@@ -119,7 +124,7 @@ export class TestConverter implements vscode.Disposable {
     while (queue.length) {
       for (const test of queue.pop()!) {
         run.setState(test, vscode.TestResultState.Queued);
-        queue.push(test.children);
+        queue.push(gatherChildren(test.children));
       }
     }
 
@@ -127,34 +132,46 @@ export class TestConverter implements vscode.Disposable {
     token.onCancellationRequested(() => this.adapter.cancel());
   }
 
+  private syncTopLevel(suite: TestSuiteInfo) {
+    const ctrl = this.acquireController(suite.label);
+    this.syncItemChildren(ctrl.items, suite.children);
+    promptDisableExplorerUi(); // prompt the first time we discover tests
+  }
+
   /**
    * Ensures the given children are set as the children of the test item.
    */
-  private syncItemChildren(parentTest: vscode.TestItem, children: (TestSuiteInfo | TestInfo)[]) {
-    parentTest.children.set(children.map(item => {
-      const childTest = vscode.test.createTestItem(
-        item.id,
-        item.label,
-        item.file ? fileToUri(item.file) : parentTest.uri
-      );
-      metadata.set(childTest, { converter: this });
-      this.itemsById.set(item.id, childTest);
-      childTest.description = item.description;
+  private syncItemChildren(
+    collection: vscode.TestItemCollection,
+    children: (TestSuiteInfo | TestInfo)[],
+    defaultUri?: vscode.Uri
+  ) {
+    collection.set(
+      children.map(item => {
+        const childTest = vscode.test.createTestItem(
+          item.id,
+          item.label,
+          item.file ? fileToUri(item.file) : defaultUri
+        );
+        metadata.set(childTest, { converter: this });
+        this.itemsById.set(item.id, childTest);
+        childTest.description = item.description;
 
-      if (item.line !== undefined) {
-        childTest.range = new vscode.Range(item.line, 0, item.line + 1, 0);
-      }
+        if (item.line !== undefined) {
+          childTest.range = new vscode.Range(item.line, 0, item.line + 1, 0);
+        }
 
-      if (item.errored) {
-        childTest.error = item.message;
-      }
+        if (item.errored) {
+          childTest.error = item.message;
+        }
 
-      if ('children' in item) {
-        this.syncItemChildren(childTest, item.children);
-      }
+        if ('children' in item) {
+          this.syncItemChildren(childTest.children, item.children);
+        }
 
-      return childTest;
-    }));
+        return childTest;
+      })
+    );
   }
 
   /**
@@ -185,7 +202,55 @@ export class TestConverter implements vscode.Disposable {
 
     task.setState(vscodeTest, convertedStates[evt.state]);
   }
+
+  private acquireController(label: string) {
+    if (this.controller) {
+      this.controller.label = label;
+      return this.controller;
+    }
+
+    const ctrl = (this.controller = vscode.test.createTestController(
+      `test-adapter-ctrl-${label}`,
+      label
+    ));
+    const makeRunHandler = (debug: boolean) => (
+      request: vscode.TestRunRequest,
+      token: vscode.CancellationToken
+    ) => {
+      if (!request.include) {
+        this.run(ctrl.createTestRun(request), request.include, debug, token);
+        return;
+      }
+
+      const involved = new Map<TestConverter, vscode.TestItem[]>();
+      for (const test of request.include) {
+        const converter = metadata.get(test)!.converter;
+        const i = involved.get(converter);
+        if (i) {
+          i.push(test);
+        } else {
+          involved.set(converter, [test]);
+        }
+      }
+
+      for (const [converter, tests] of involved) {
+        converter.run(ctrl.createTestRun(request), tests, debug, token);
+      }
+    };
+
+    ctrl.createRunProfile('Run', vscode.TestRunProfileGroup.Run, makeRunHandler(false), true);
+    ctrl.createRunProfile('Debug', vscode.TestRunProfileGroup.Debug, makeRunHandler(true), true);
+    vscode.commands.executeCommand('setContext', 'hasTestConverterTests', true);
+
+    return ctrl;
+  }
 }
+
+const gatherChildren = (col: vscode.TestItemCollection) => {
+  const children: vscode.TestItem[] = [];
+  col.forEach(child => children.push(child));
+  return children;
+};
 
 const schemeMatcher = /^[a-z][a-z0-9+-.]+:/;
 const fileToUri = (file: string) =>

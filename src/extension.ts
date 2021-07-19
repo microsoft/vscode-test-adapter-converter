@@ -30,8 +30,8 @@ export function activate(context: vscode.ExtensionContext) {
       });
     }),
 
-    vscode.commands.registerCommand('testExplorerConverter.refreshAdapter', testId => {
-      factory?.refresh(testId);
-    })
+    vscode.commands.registerCommand('testExplorerConverter.refreshAdapter', () =>
+      factory?.refresh()
+    )
   );
 }

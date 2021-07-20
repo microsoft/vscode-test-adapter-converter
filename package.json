@@ -16,12 +16,17 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:testExplorerConverter.activate"
+    "onCommand:testExplorerConverter.activate",
+    "onCommand:testExplorerConverter.useNativeTesting"
   ],
   "main": "./out/extension.js",
   "enableProposedApi": true,
   "contributes": {
     "commands": [
+      {
+        "command": "testExplorerConverter.useNativeTesting",
+        "title": "Use Native Testing"
+      },
       {
         "command": "testExplorerConverter.activate",
         "title": "Activate Test Adapter Converter"
@@ -40,7 +45,12 @@
           "when": "false"
         },
         {
-          "command": "testExplorerConverter.refreshAdapter"
+          "command": "testExplorerConverter.useNativeTesting",
+          "when": "false"
+        },
+        {
+          "command": "testExplorerConverter.refreshAdapter",
+          "when": "hasTestConverterTests"
         }
       ],
       "view/title": [

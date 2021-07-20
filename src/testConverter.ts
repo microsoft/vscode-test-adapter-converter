@@ -3,13 +3,7 @@
  *--------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import {
-  TestAdapter,
-  TestEvent,
-  TestInfo,
-  TestRunStartedEvent,
-  TestSuiteInfo,
-} from 'vscode-test-adapter-api';
+import { TestAdapter, TestEvent, TestInfo, TestSuiteInfo } from 'vscode-test-adapter-api';
 
 export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
 
@@ -99,37 +93,30 @@ export class TestConverter implements vscode.Disposable {
       testsToRun = gatherChildren(this.controller.items);
     }
 
-    let listener: vscode.Disposable;
-    const started = await new Promise<TestRunStartedEvent | undefined>(resolve => {
-      listener = this.adapter.testStates(evt => {
-        if (evt.type === 'started') {
-          resolve(evt);
-          listener.dispose();
+    const listener = this.adapter.testStates(evt => {
+      if (evt.type !== 'started') {
+        return;
+      }
+
+      const queue: Iterable<vscode.TestItem>[] = [testsToRun!];
+      while (queue.length) {
+        for (const test of queue.pop()!) {
+          run.setState(test, vscode.TestResultState.Queued);
+          queue.push(gatherChildren(test.children));
         }
-      });
-
-      if (!debug) {
-        this.adapter.run(testsToRun!.map(t => t.id));
-      } else if (this.adapter.debug) {
-        this.adapter.debug(testsToRun!.map(t => t.id));
-      } else {
-        resolve(undefined);
       }
-    }).finally(() => listener.dispose());
 
-    if (!started) {
-      return;
-    }
-    const queue: Iterable<vscode.TestItem>[] = [testsToRun];
-    while (queue.length) {
-      for (const test of queue.pop()!) {
-        run.setState(test, vscode.TestResultState.Queued);
-        queue.push(gatherChildren(test.children));
-      }
-    }
+      this.tasksByRunId.set(evt.testRunId ?? '', run);
+      token.onCancellationRequested(() => this.adapter.cancel());
+    });
 
-    this.tasksByRunId.set(started.testRunId ?? '', run);
-    token.onCancellationRequested(() => this.adapter.cancel());
+    if (!debug) {
+      this.adapter.run(testsToRun!.map(t => t.id));
+    } else if (this.adapter.debug) {
+      this.adapter.debug(testsToRun!.map(t => t.id));
+    } else {
+      listener.dispose();
+    }
   }
 
   private syncTopLevel(suite: TestSuiteInfo) {

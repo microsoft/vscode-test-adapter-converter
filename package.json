@@ -5,7 +5,7 @@
   "publisher": "ms-vscode",
   "version": "0.0.17",
   "engines": {
-    "vscode": "^1.59.0-20210717"
+    "vscode": "^1.59.0-20210720"
   },
   "capabilities": {
     "untrustedWorkspaces": {
@@ -17,7 +17,9 @@
   ],
   "activationEvents": [
     "onCommand:testExplorerConverter.activate",
-    "onCommand:testExplorerConverter.useNativeTesting"
+    "onCommand:testExplorerConverter.useNativeTesting",
+    "onCommand:test-explorer.run",
+    "onCommand:test-explorer.run-all"
   ],
   "main": "./out/extension.js",
   "enableProposedApi": true,

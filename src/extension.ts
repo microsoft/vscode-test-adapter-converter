@@ -4,23 +4,42 @@
 
 import * as vscode from 'vscode';
 import { testExplorerExtensionId, TestHub } from 'vscode-test-adapter-api';
+import {
+  OptInController,
+  switchToNativeTesting,
+  useNativeTestingConfig,
+  usingNativeTesting,
+} from './optIn';
 import { TestConverterFactory } from './testConverterFactory';
-
-const configKey = 'testExplorer.useNativeTesting';
 
 export function activate(context: vscode.ExtensionContext) {
   let factory: TestConverterFactory | undefined;
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand('testExplorerConverter.activate', () => {
-      const testExplorerExtension = vscode.extensions.getExtension<TestHub>(
-        testExplorerExtensionId
-      );
-      if (!testExplorerExtension) {
+  const optIn = new OptInController(context);
+  if (vscode.env.appName.toLowerCase().includes('insiders') && optIn.shouldPrompt()) {
+    setTimeout(() => {
+      const testHub = vscode.extensions.getExtension<TestHub>(testExplorerExtensionId)?.exports;
+
+      if (!testHub) {
         return;
       }
 
-      const testHub = testExplorerExtension.exports;
+      testHub.registerTestController(optIn);
+      context.subscriptions.push({
+        dispose() {
+          testHub.unregisterTestController(optIn);
+        },
+      });
+    }, 2000);
+  }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('testExplorerConverter.activate', () => {
+      const testHub = vscode.extensions.getExtension<TestHub>(testExplorerExtensionId)?.exports;
+      if (!testHub) {
+        return;
+      }
+
       factory = new TestConverterFactory();
       context.subscriptions.push(factory);
 
@@ -33,11 +52,11 @@ export function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.workspace.onDidChangeConfiguration(e => {
-      if (!e.affectsConfiguration(configKey)) {
+      if (!e.affectsConfiguration(useNativeTestingConfig)) {
         return;
       }
 
-      if (vscode.workspace.getConfiguration().get(configKey, false) === false) {
+      if (!usingNativeTesting()) {
         factory?.dispose();
         factory = undefined;
       }
@@ -47,9 +66,8 @@ export function activate(context: vscode.ExtensionContext) {
       factory?.refresh()
     ),
 
-    vscode.commands.registerCommand('testExplorerConverter.useNativeTesting', () => {
-      const config = vscode.workspace.getConfiguration();
-      config.update(configKey, true, vscode.ConfigurationTarget.Global);
-    })
+    vscode.commands.registerCommand('testExplorerConverter.useNativeTesting', () =>
+      switchToNativeTesting()
+    )
   );
 }

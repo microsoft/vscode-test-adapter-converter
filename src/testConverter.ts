@@ -121,20 +121,21 @@ export class TestConverter implements vscode.Disposable {
 
   private syncTopLevel(suite: TestSuiteInfo) {
     const ctrl = this.acquireController(suite.label);
-    this.syncItemChildren(ctrl.items, suite.children);
+    this.syncItemChildren(ctrl, ctrl.items, suite.children);
   }
 
   /**
    * Ensures the given children are set as the children of the test item.
    */
   private syncItemChildren(
+    controller: vscode.TestController,
     collection: vscode.TestItemCollection,
     children: (TestSuiteInfo | TestInfo)[],
     defaultUri?: vscode.Uri
   ) {
-    collection.set(
+    collection.replace(
       children.map(item => {
-        const childTest = vscode.test.createTestItem(
+        const childTest = controller.createTestItem(
           item.id,
           item.label,
           item.file ? fileToUri(item.file) : defaultUri
@@ -152,7 +153,7 @@ export class TestConverter implements vscode.Disposable {
         }
 
         if ('children' in item) {
-          this.syncItemChildren(childTest.children, item.children);
+          this.syncItemChildren(controller, childTest.children, item.children);
         }
 
         return childTest;
@@ -172,7 +173,6 @@ export class TestConverter implements vscode.Disposable {
 
     if (evt.message) {
       const message = new vscode.TestMessage(evt.message);
-      message.severity = vscode.TestMessageSeverity.Information;
       task.appendMessage(vscodeTest, message);
     }
 
@@ -195,7 +195,7 @@ export class TestConverter implements vscode.Disposable {
       return this.controller;
     }
 
-    const ctrl = (this.controller = vscode.test.createTestController(
+    const ctrl = (this.controller = vscode.tests.createTestController(
       `test-adapter-ctrl-${label}`,
       label
     ));
@@ -226,8 +226,8 @@ export class TestConverter implements vscode.Disposable {
       }
     };
 
-    ctrl.createRunProfile('Run', vscode.TestRunProfileGroup.Run, makeRunHandler(false), true);
-    ctrl.createRunProfile('Debug', vscode.TestRunProfileGroup.Debug, makeRunHandler(true), true);
+    ctrl.createRunProfile('Run', vscode.TestRunProfileKind.Run, makeRunHandler(false), true);
+    ctrl.createRunProfile('Debug', vscode.TestRunProfileKind.Debug, makeRunHandler(true), true);
     vscode.commands.executeCommand('setContext', 'hasTestConverterTests', true);
 
     return ctrl;
@@ -250,5 +250,5 @@ const convertedStates = {
   failed: vscode.TestResultState.Failed,
   skipped: vscode.TestResultState.Skipped,
   errored: vscode.TestResultState.Errored,
-  completed: vscode.TestResultState.Unset,
+  completed: vscode.TestResultState.Passed,
 };

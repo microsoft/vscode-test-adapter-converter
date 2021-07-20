@@ -6,6 +6,8 @@ import * as vscode from 'vscode';
 import { testExplorerExtensionId, TestHub } from 'vscode-test-adapter-api';
 import { TestConverterFactory } from './testConverterFactory';
 
+const configKey = 'testExplorer.useNativeTesting';
+
 export function activate(context: vscode.ExtensionContext) {
   let factory: TestConverterFactory | undefined;
 
@@ -28,6 +30,17 @@ export function activate(context: vscode.ExtensionContext) {
           testHub.unregisterTestController(factory!);
         },
       });
+    }),
+
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (!e.affectsConfiguration(configKey)) {
+        return;
+      }
+
+      if (vscode.workspace.getConfiguration().get(configKey, false) === false) {
+        factory?.dispose();
+        factory = undefined;
+      }
     }),
 
     vscode.commands.registerCommand('testExplorerConverter.refreshAdapter', () =>

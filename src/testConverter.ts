@@ -200,6 +200,8 @@ export class TestConverter implements vscode.Disposable {
       `test-adapter-ctrl-${label}`,
       label
     ));
+    this.disposables.push(ctrl);
+
     const makeRunHandler = (debug: boolean) => (
       request: vscode.TestRunRequest,
       token: vscode.CancellationToken

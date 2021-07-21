@@ -5,7 +5,7 @@
   "publisher": "ms-vscode",
   "version": "0.1.1",
   "engines": {
-    "vscode": "^1.59.0-20210721"
+    "vscode": "^1.59.0-20210722"
   },
   "capabilities": {
     "untrustedWorkspaces": {

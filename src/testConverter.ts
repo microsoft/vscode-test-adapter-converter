@@ -101,13 +101,14 @@ export class TestConverter implements vscode.Disposable {
       const queue: Iterable<vscode.TestItem>[] = [testsToRun!];
       while (queue.length) {
         for (const test of queue.pop()!) {
-          run.setState(test, vscode.TestResultState.Queued);
+          run.enqueued(test);
           queue.push(gatherChildren(test.children));
         }
       }
 
       this.tasksByRunId.set(evt.testRunId ?? '', run);
       token.onCancellationRequested(() => this.adapter.cancel());
+      listener.dispose();
     });
 
     if (!debug) {
@@ -171,22 +172,37 @@ export class TestConverter implements vscode.Disposable {
       return;
     }
 
-    if (evt.message) {
-      const message = new vscode.TestMessage(evt.message);
-      task.appendMessage(vscodeTest, message);
+    switch (evt.state) {
+      case 'skipped':
+        task.skipped(vscodeTest);
+        break;
+      case 'running':
+        task.started(vscodeTest);
+        break;
+      case 'passed':
+        task.passed(vscodeTest);
+        break;
+      case 'errored':
+      case 'failed':
+        const messages: vscode.TestMessage[] = [];
+        if (evt.message) {
+          const message = new vscode.TestMessage(evt.message);
+          messages.push(message);
+        }
+
+        for (const decoration of evt.decorations ?? []) {
+          const message = new vscode.TestMessage(decoration.message);
+          const uri = decoration.file ? fileToUri(decoration.file) : vscodeTest.uri;
+          if (uri) {
+            message.location = new vscode.Location(uri, new vscode.Position(decoration.line, 0));
+          }
+
+          messages.push(message);
+        }
+
+        task.failed(vscodeTest, messages);
+        break;
     }
-
-    for (const decoration of evt.decorations ?? []) {
-      const message = new vscode.TestMessage(decoration.message);
-      const uri = decoration.file ? fileToUri(decoration.file) : vscodeTest.uri;
-      if (uri) {
-        message.location = new vscode.Location(uri, new vscode.Position(decoration.line, 0));
-      }
-
-      task.appendMessage(vscodeTest, message);
-    }
-
-    task.setState(vscodeTest, convertedStates[evt.state]);
   }
 
   private acquireController(label: string) {
@@ -243,12 +259,3 @@ const gatherChildren = (col: vscode.TestItemCollection) => {
 const schemeMatcher = /^[a-z][a-z0-9+-.]+:/;
 const fileToUri = (file: string) =>
   schemeMatcher.test(file) ? vscode.Uri.parse(file) : vscode.Uri.file(file);
-
-const convertedStates = {
-  running: vscode.TestResultState.Running,
-  passed: vscode.TestResultState.Passed,
-  failed: vscode.TestResultState.Failed,
-  skipped: vscode.TestResultState.Skipped,
-  errored: vscode.TestResultState.Errored,
-  completed: vscode.TestResultState.Passed,
-};

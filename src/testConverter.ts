@@ -200,7 +200,7 @@ export class TestConverter implements vscode.Disposable {
           messages.push(message);
         }
 
-        task.failed(vscodeTest, messages);
+        task[evt.state](vscodeTest, messages);
         break;
     }
   }

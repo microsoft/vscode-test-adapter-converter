@@ -65,8 +65,6 @@ export class TestConverter implements vscode.Disposable {
         }
       })
     );
-
-    setTimeout(() => this.adapter.load(), 1);
   }
 
   public async refresh() {

@@ -201,6 +201,10 @@ export class TestConverter implements vscode.Disposable {
         task[evt.state](vscodeTest, messages);
         break;
     }
+
+    if (evt.message && evt.state !== 'errored' && evt.state !== 'failed') {
+      task.appendOutput(evt.message);
+    }
   }
 
   private acquireController(label: string) {

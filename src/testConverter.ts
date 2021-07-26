@@ -213,10 +213,11 @@ export class TestConverter implements vscode.Disposable {
       return this.controller;
     }
 
-    const ctrl = (this.controller = vscode.tests.createTestController(
-      `test-adapter-ctrl-${label}`,
-      label
-    ));
+    let id = `test-adapter-ctrl-${label}`;
+    if (this.adapter.workspaceFolder) {
+      id += `-${this.adapter.workspaceFolder.uri.toString()}`
+    }
+    const ctrl = (this.controller = vscode.tests.createTestController(id, label));
     this.disposables.push(ctrl);
 
     const makeRunHandler = (debug: boolean) => (

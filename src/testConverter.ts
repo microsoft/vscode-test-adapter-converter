@@ -3,7 +3,13 @@
  *--------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TestAdapter, TestEvent, TestInfo, TestSuiteEvent, TestSuiteInfo } from 'vscode-test-adapter-api';
+import {
+  TestAdapter,
+  TestEvent,
+  TestInfo,
+  TestSuiteEvent,
+  TestSuiteInfo,
+} from 'vscode-test-adapter-api';
 
 export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
 
@@ -135,9 +141,7 @@ export class TestConverter implements vscode.Disposable {
     children: (TestSuiteInfo | TestInfo)[],
     defaultUri?: vscode.Uri
   ) {
-    collection.replace(
-      children.map(item => this.createTest(controller, item, defaultUri))
-    );
+    collection.replace(children.map(item => this.createTest(controller, item, defaultUri)));
   }
 
   private createTest(
@@ -197,7 +201,12 @@ export class TestConverter implements vscode.Disposable {
   private onTestEvent(task: vscode.TestRun, evt: TestEvent) {
     const runningSuite = this.runningSuiteByRunId.get(evt.testRunId ?? '');
     const testId = typeof evt.test === 'string' ? evt.test : evt.test.id;
-    if (evt.state === 'running' && !this.itemsById.has(testId) && typeof evt.test === 'object' && runningSuite) {
+    if (
+      evt.state === 'running' &&
+      !this.itemsById.has(testId) &&
+      typeof evt.test === 'object' &&
+      runningSuite
+    ) {
       runningSuite.children.add(this.createTest(this.controller!, evt.test));
     }
     const vscodeTest = this.itemsById.get(testId);
@@ -237,8 +246,8 @@ export class TestConverter implements vscode.Disposable {
         break;
     }
 
-    if (evt.message && evt.state !== 'errored' && evt.state !== 'failed') {
-      task.appendOutput(evt.message);
+    if (evt.message && ((evt.state !== 'errored' && evt.state !== 'failed') || !vscodeTest.uri)) {
+      task.appendOutput(evt.message.replace(/\r?\n/g, '\r\n'));
     }
   }
 
@@ -250,7 +259,7 @@ export class TestConverter implements vscode.Disposable {
 
     let id = `test-adapter-ctrl-${label}`;
     if (this.adapter.workspaceFolder) {
-      id += `-${this.adapter.workspaceFolder.uri.toString()}`
+      id += `-${this.adapter.workspaceFolder.uri.toString()}`;
     }
     const ctrl = (this.controller = vscode.tests.createTestController(id, label));
     this.disposables.push(ctrl);

@@ -5,7 +5,7 @@
   "publisher": "ms-vscode",
   "version": "0.1.3",
   "engines": {
-    "vscode": "^1.59.0-20210722"
+    "vscode": "^1.61.0"
   },
   "capabilities": {
     "untrustedWorkspaces": {
@@ -80,12 +80,10 @@
     "build": "npm run -S esbuild-base -- --sourcemap",
     "watch": "npm run -S esbuild-base -- --sourcemap --watch",
     "fmt": "prettier --write \"src/**/*.ts\"&& npm run test -- --fix",
-    "test": "eslint src --ext ts",
-    "download-api": "vscode-dts dev",
-    "postdownload-api": "vscode-dts master",
-    "postinstall": "npm run download-api"
+    "test": "eslint src --ext ts && tsc --noEmit"
   },
   "devDependencies": {
+    "@types/vscode": "^1.61.0",
     "@typescript-eslint/eslint-plugin": "^4.14.1",
     "@typescript-eslint/parser": "^4.14.1",
     "esbuild": "^0.12.15",

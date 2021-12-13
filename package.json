@@ -22,7 +22,6 @@
     "onCommand:test-explorer.run-all"
   ],
   "main": "./out/extension.js",
-  "enableProposedApi": true,
   "contributes": {
     "commands": [
       {

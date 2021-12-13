@@ -17,6 +17,19 @@ export interface ITestMetadata {
   converter: TestConverter;
 }
 
+const unique = <T, R>(arr: readonly T[], project: (v: T) => R): T[] => {
+  const seen = new Set<R>();
+  return arr.filter(t => {
+    const r = project(t);
+    if (seen.has(r)) {
+      return false;
+    }
+
+    seen.add(r);
+    return true;
+  });
+};
+
 const testViewId = 'workbench.view.extension.test';
 
 export class TestConverter implements vscode.Disposable {
@@ -141,7 +154,9 @@ export class TestConverter implements vscode.Disposable {
     children: (TestSuiteInfo | TestInfo)[],
     defaultUri?: vscode.Uri
   ) {
-    collection.replace(children.map(item => this.createTest(controller, item, defaultUri)));
+    collection.replace(
+      unique(children, c => c.id).map(item => this.createTest(controller, item, defaultUri))
+    );
   }
 
   private createTest(

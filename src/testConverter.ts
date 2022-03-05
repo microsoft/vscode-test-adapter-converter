@@ -174,7 +174,7 @@ export class TestConverter implements vscode.Disposable {
   private syncTopLevel(evt: TestLoadFinishedEvent) {
     vscode.commands.executeCommand('setContext', 'hasTestConverterTests', true);
     if (evt.suite) {
-      this.controller.label = evt.suite.label;
+      this.controller.label = this.adapter.workspaceFolder ? `${this.adapter.workspaceFolder.name} - ${evt.suite.label}` : evt.suite.label;
       this.syncItemChildren(this.controller.items, evt.suite.children);
     } else if (evt.errorMessage) {
       const test = this.controller.createTestItem('error', 'Test discovery failed');

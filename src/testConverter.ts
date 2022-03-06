@@ -8,7 +8,7 @@ import {
   TestEvent,
   TestInfo,
   TestSuiteEvent,
-  TestSuiteInfo,
+  TestSuiteInfo
 } from 'vscode-test-adapter-api';
 
 export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
@@ -141,7 +141,8 @@ export class TestConverter implements vscode.Disposable {
   }
 
   private syncTopLevel(suite: TestSuiteInfo) {
-    const ctrl = this.acquireController(suite.label);
+    const label = this.adapter.workspaceFolder ? `${this.adapter.workspaceFolder.name} - ${suite.label}` : suite.label;
+    const ctrl = this.acquireController(label);
     this.syncItemChildren(ctrl, ctrl.items, suite.children);
   }
 

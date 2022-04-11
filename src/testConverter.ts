@@ -48,6 +48,7 @@ export class TestConverter implements vscode.Disposable {
 
   constructor(private readonly adapter: TestAdapter) {
     this.controller = vscode.tests.createTestController(`test-adapter-ctrl-${nextControllerId++}`, '');
+    this.controller.refreshHandler = () => this.adapter.load();
     this.disposables.push(this.controller);
 
     const makeRunHandler = (debug: boolean) => (
@@ -117,12 +118,6 @@ export class TestConverter implements vscode.Disposable {
             return task.end();
         }
       })
-    );
-  }
-
-  public async refresh() {
-    await vscode.window.withProgress({ location: { viewId: testViewId } }, () =>
-      this.adapter.load()
     );
   }
 

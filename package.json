@@ -31,12 +31,6 @@
       {
         "command": "testExplorerConverter.activate",
         "title": "Activate Test Adapter Converter"
-      },
-      {
-        "title": "Refresh Adapter Tests",
-        "command": "testExplorerConverter.refreshAdapter",
-        "category": "Test",
-        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -48,17 +42,6 @@
         {
           "command": "testExplorerConverter.useNativeTesting",
           "when": "false"
-        },
-        {
-          "command": "testExplorerConverter.refreshAdapter",
-          "when": "hasTestConverterTests"
-        }
-      ],
-      "view/title": [
-        {
-          "command": "testExplorerConverter.refreshAdapter",
-          "when": "view == workbench.view.testing && hasTestConverterTests",
-          "group": "navigation"
         }
       ]
     }

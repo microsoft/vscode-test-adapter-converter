@@ -7,6 +7,7 @@ import {
   TestAdapter,
   TestEvent,
   TestInfo,
+  TestLoadFinishedEvent,
   TestSuiteEvent,
   TestSuiteInfo
 } from 'vscode-test-adapter-api';
@@ -31,9 +32,10 @@ const unique = <T, R>(arr: readonly T[], project: (v: T) => R): T[] => {
 };
 
 const testViewId = 'workbench.view.extension.test';
+let nextControllerId = 1;
 
 export class TestConverter implements vscode.Disposable {
-  private controller?: vscode.TestController;
+  private readonly controller: vscode.TestController;
   private doneDiscovery?: () => void;
   private readonly itemsById = new Map<string, vscode.TestItem>();
   private readonly tasksByRunId = new Map<string, vscode.TestRun>();
@@ -41,10 +43,42 @@ export class TestConverter implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
 
   public get controllerId() {
-    return this.controller?.id;
+    return this.controller.id;
   }
 
   constructor(private readonly adapter: TestAdapter) {
+    this.controller = vscode.tests.createTestController(`test-adapter-ctrl-${nextControllerId++}`, '');
+    this.controller.refreshHandler = () => this.adapter.load();
+    this.disposables.push(this.controller);
+
+    const makeRunHandler = (debug: boolean) => (
+      request: vscode.TestRunRequest,
+      token: vscode.CancellationToken
+    ) => {
+      if (!request.include) {
+        this.run(this.controller.createTestRun(request), request.include, debug, token);
+        return;
+      }
+
+      const involved = new Map<TestConverter, vscode.TestItem[]>();
+      for (const test of request.include) {
+        const converter = metadata.get(test)!.converter;
+        const i = involved.get(converter);
+        if (i) {
+          i.push(test);
+        } else {
+          involved.set(converter, [test]);
+        }
+      }
+
+      for (const [converter, tests] of involved) {
+        converter.run(this.controller.createTestRun(request), tests, debug, token);
+      }
+    };
+
+    this.controller.createRunProfile('Run', vscode.TestRunProfileKind.Run, makeRunHandler(false), true);
+    this.controller.createRunProfile('Debug', vscode.TestRunProfileKind.Debug, makeRunHandler(true), true);
+
     this.disposables.push(
       adapter.tests(evt => {
         switch (evt.type) {
@@ -52,9 +86,7 @@ export class TestConverter implements vscode.Disposable {
             this.doneDiscovery?.();
             this.doneDiscovery = undefined;
             this.itemsById.clear();
-            if (evt.suite) {
-              this.syncTopLevel(evt.suite);
-            }
+            this.syncTopLevel(evt);
             break;
 
           case 'started':
@@ -86,12 +118,6 @@ export class TestConverter implements vscode.Disposable {
             return task.end();
         }
       })
-    );
-  }
-
-  public async refresh() {
-    await vscode.window.withProgress({ location: { viewId: testViewId } }, () =>
-      this.adapter.load()
     );
   }
 
@@ -140,32 +166,36 @@ export class TestConverter implements vscode.Disposable {
     }
   }
 
-  private syncTopLevel(suite: TestSuiteInfo) {
-    const label = this.adapter.workspaceFolder ? `${this.adapter.workspaceFolder.name} - ${suite.label}` : suite.label;
-    const ctrl = this.acquireController(label);
-    this.syncItemChildren(ctrl, ctrl.items, suite.children);
+  private syncTopLevel(evt: TestLoadFinishedEvent) {
+    vscode.commands.executeCommand('setContext', 'hasTestConverterTests', true);
+    if (evt.suite) {
+      this.controller.label = this.adapter.workspaceFolder ? `${this.adapter.workspaceFolder.name} - ${evt.suite.label}` : evt.suite.label;
+      this.syncItemChildren(this.controller.items, evt.suite.children);
+    } else if (evt.errorMessage) {
+      const test = this.controller.createTestItem('error', 'Test discovery failed');
+      test.error = evt.errorMessage;
+      this.controller.items.replace([test]);
+    }
   }
 
   /**
    * Ensures the given children are set as the children of the test item.
    */
   private syncItemChildren(
-    controller: vscode.TestController,
     collection: vscode.TestItemCollection,
     children: (TestSuiteInfo | TestInfo)[],
     defaultUri?: vscode.Uri
   ) {
     collection.replace(
-      unique(children, c => c.id).map(item => this.createTest(controller, item, defaultUri))
+      unique(children, c => c.id).map(item => this.createTest(item, defaultUri))
     );
   }
 
   private createTest(
-    controller: vscode.TestController,
     item: TestSuiteInfo | TestInfo,
     defaultUri?: vscode.Uri
   ) {
-    const test = controller.createTestItem(
+    const test = this.controller.createTestItem(
       item.id,
       item.label,
       item.file ? fileToUri(item.file) : defaultUri
@@ -183,7 +213,7 @@ export class TestConverter implements vscode.Disposable {
     }
 
     if ('children' in item) {
-      this.syncItemChildren(controller, test.children, item.children);
+      this.syncItemChildren(test.children, item.children);
     }
 
     return test;
@@ -195,7 +225,7 @@ export class TestConverter implements vscode.Disposable {
     const suiteId = typeof evt.suite === 'string' ? evt.suite : evt.suite.id;
     if (evt.state === 'running') {
       if (!this.itemsById.has(suiteId) && typeof evt.suite === 'object' && runningSuite) {
-        runningSuite.children.add(this.createTest(this.controller!, evt.suite));
+        runningSuite.children.add(this.createTest(evt.suite));
       }
       if (this.itemsById.has(suiteId)) {
         this.runningSuiteByRunId.set(runId, this.itemsById.get(suiteId)!);
@@ -223,7 +253,7 @@ export class TestConverter implements vscode.Disposable {
       typeof evt.test === 'object' &&
       runningSuite
     ) {
-      runningSuite.children.add(this.createTest(this.controller!, evt.test));
+      runningSuite.children.add(this.createTest(evt.test));
     }
     const vscodeTest = this.itemsById.get(testId);
     if (!vscodeTest) {
@@ -265,51 +295,6 @@ export class TestConverter implements vscode.Disposable {
     if (evt.message && ((evt.state !== 'errored' && evt.state !== 'failed') || !vscodeTest.uri)) {
       task.appendOutput(evt.message.replace(/\r?\n/g, '\r\n'));
     }
-  }
-
-  private acquireController(label: string) {
-    if (this.controller) {
-      this.controller.label = label;
-      return this.controller;
-    }
-
-    let id = `test-adapter-ctrl-${label}`;
-    if (this.adapter.workspaceFolder) {
-      id += `-${this.adapter.workspaceFolder.uri.toString()}`;
-    }
-    const ctrl = (this.controller = vscode.tests.createTestController(id, label));
-    this.disposables.push(ctrl);
-
-    const makeRunHandler = (debug: boolean) => (
-      request: vscode.TestRunRequest,
-      token: vscode.CancellationToken
-    ) => {
-      if (!request.include) {
-        this.run(ctrl.createTestRun(request), request.include, debug, token);
-        return;
-      }
-
-      const involved = new Map<TestConverter, vscode.TestItem[]>();
-      for (const test of request.include) {
-        const converter = metadata.get(test)!.converter;
-        const i = involved.get(converter);
-        if (i) {
-          i.push(test);
-        } else {
-          involved.set(converter, [test]);
-        }
-      }
-
-      for (const [converter, tests] of involved) {
-        converter.run(ctrl.createTestRun(request), tests, debug, token);
-      }
-    };
-
-    ctrl.createRunProfile('Run', vscode.TestRunProfileKind.Run, makeRunHandler(false), true);
-    ctrl.createRunProfile('Debug', vscode.TestRunProfileKind.Debug, makeRunHandler(true), true);
-    vscode.commands.executeCommand('setContext', 'hasTestConverterTests', true);
-
-    return ctrl;
   }
 }
 

@@ -34,10 +34,4 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
 
     vscode.commands.executeCommand('setContext', 'hasTestConverterTests', false);
   }
-
-  public refresh() {
-    for (const converter of this.converters.values()) {
-      converter.refresh();
-    }
-  }
 }

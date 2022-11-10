@@ -292,7 +292,7 @@ export class TestConverter implements vscode.Disposable {
         break;
     }
 
-    if (evt.message && ((evt.state !== 'errored' && evt.state !== 'failed') || !vscodeTest.uri)) {
+    if (evt.message) {
       task.appendOutput(evt.message.replace(/\r?\n/g, '\r\n'));
     }
   }

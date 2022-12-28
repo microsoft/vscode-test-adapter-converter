@@ -9,7 +9,7 @@ import {
   TestInfo,
   TestLoadFinishedEvent,
   TestSuiteEvent,
-  TestSuiteInfo
+  TestSuiteInfo,
 } from 'vscode-test-adapter-api';
 
 export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
@@ -47,37 +47,48 @@ export class TestConverter implements vscode.Disposable {
   }
 
   constructor(private readonly adapter: TestAdapter) {
-    this.controller = vscode.tests.createTestController(`test-adapter-ctrl-${nextControllerId++}`, '');
+    this.controller = vscode.tests.createTestController(
+      `test-adapter-ctrl-${nextControllerId++}`,
+      ''
+    );
     this.controller.refreshHandler = () => this.adapter.load();
     this.disposables.push(this.controller);
 
-    const makeRunHandler = (debug: boolean) => (
-      request: vscode.TestRunRequest,
-      token: vscode.CancellationToken
-    ) => {
-      if (!request.include) {
-        this.run(this.controller.createTestRun(request), request.include, debug, token);
-        return;
-      }
-
-      const involved = new Map<TestConverter, vscode.TestItem[]>();
-      for (const test of request.include) {
-        const converter = metadata.get(test)!.converter;
-        const i = involved.get(converter);
-        if (i) {
-          i.push(test);
-        } else {
-          involved.set(converter, [test]);
+    const makeRunHandler =
+      (debug: boolean) => (request: vscode.TestRunRequest, token: vscode.CancellationToken) => {
+        if (!request.include) {
+          this.run(this.controller.createTestRun(request), request.include, debug, token);
+          return;
         }
-      }
 
-      for (const [converter, tests] of involved) {
-        converter.run(this.controller.createTestRun(request), tests, debug, token);
-      }
-    };
+        const involved = new Map<TestConverter, vscode.TestItem[]>();
+        for (const test of request.include) {
+          const converter = metadata.get(test)!.converter;
+          const i = involved.get(converter);
+          if (i) {
+            i.push(test);
+          } else {
+            involved.set(converter, [test]);
+          }
+        }
 
-    this.controller.createRunProfile('Run', vscode.TestRunProfileKind.Run, makeRunHandler(false), true);
-    this.controller.createRunProfile('Debug', vscode.TestRunProfileKind.Debug, makeRunHandler(true), true);
+        for (const [converter, tests] of involved) {
+          converter.run(this.controller.createTestRun(request), tests, debug, token);
+        }
+      };
+
+    this.controller.createRunProfile(
+      'Run',
+      vscode.TestRunProfileKind.Run,
+      makeRunHandler(false),
+      true
+    );
+    this.controller.createRunProfile(
+      'Debug',
+      vscode.TestRunProfileKind.Debug,
+      makeRunHandler(true),
+      true
+    );
 
     this.disposables.push(
       adapter.tests(evt => {
@@ -169,7 +180,9 @@ export class TestConverter implements vscode.Disposable {
   private syncTopLevel(evt: TestLoadFinishedEvent) {
     vscode.commands.executeCommand('setContext', 'hasTestConverterTests', true);
     if (evt.suite) {
-      this.controller.label = this.adapter.workspaceFolder ? `${this.adapter.workspaceFolder.name} - ${evt.suite.label}` : evt.suite.label;
+      this.controller.label = this.adapter.workspaceFolder
+        ? `${this.adapter.workspaceFolder.name} - ${evt.suite.label}`
+        : evt.suite.label;
       this.syncItemChildren(this.controller.items, evt.suite.children);
     } else if (evt.errorMessage) {
       const test = this.controller.createTestItem('error', 'Test discovery failed');
@@ -186,15 +199,10 @@ export class TestConverter implements vscode.Disposable {
     children: (TestSuiteInfo | TestInfo)[],
     defaultUri?: vscode.Uri
   ) {
-    collection.replace(
-      unique(children, c => c.id).map(item => this.createTest(item, defaultUri))
-    );
+    collection.replace(unique(children, c => c.id).map(item => this.createTest(item, defaultUri)));
   }
 
-  private createTest(
-    item: TestSuiteInfo | TestInfo,
-    defaultUri?: vscode.Uri
-  ) {
+  private createTest(item: TestSuiteInfo | TestInfo, defaultUri?: vscode.Uri) {
     const test = this.controller.createTestItem(
       item.id,
       item.label,

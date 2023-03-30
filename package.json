@@ -5,7 +5,7 @@
   "publisher": "ms-vscode",
   "version": "0.1.6",
   "engines": {
-    "vscode": "^1.66.0"
+    "vscode": "^1.75.0"
   },
   "capabilities": {
     "untrustedWorkspaces": {
@@ -16,8 +16,6 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:testExplorerConverter.activate",
-    "onCommand:testExplorerConverter.useNativeTesting",
     "onCommand:test-explorer.run",
     "onCommand:test-explorer.run-all"
   ],

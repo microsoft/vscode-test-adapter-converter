@@ -103,10 +103,13 @@ export class TestConverter implements vscode.Disposable {
           case 'started':
             if (!this.doneDiscovery) {
               vscode.window.withProgress(
-                { location: { viewId: testViewId } },
+                { title: `An adapter is discovering tests`, location: { viewId: testViewId } },
                 () =>
                   new Promise<void>(resolve => {
                     this.doneDiscovery = resolve;
+                    // Avoid showing "busy" if discovery is blocked, e.g. on a notification
+                    // See https://github.com/microsoft/vscode/issues/178232
+                    setTimeout(resolve, 30_000);
                   })
               );
             }

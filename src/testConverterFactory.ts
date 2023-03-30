@@ -3,7 +3,7 @@
  *--------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TestAdapter, TestController as AdapterTestController } from 'vscode-test-adapter-api';
+import { TestController as AdapterTestController, TestAdapter } from 'vscode-test-adapter-api';
 import { TestConverter } from './testConverter';
 
 export class TestConverterFactory implements AdapterTestController, vscode.Disposable {

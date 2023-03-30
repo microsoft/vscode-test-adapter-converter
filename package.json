@@ -3,9 +3,9 @@
   "displayName": "Test Adapter Converter",
   "description": "Converter extension from the Test Adapter UI to native VS Code testing",
   "publisher": "ms-vscode",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "engines": {
-    "vscode": "^1.66.0"
+    "vscode": "^1.75.0"
   },
   "capabilities": {
     "untrustedWorkspaces": {
@@ -16,8 +16,6 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:testExplorerConverter.activate",
-    "onCommand:testExplorerConverter.useNativeTesting",
     "onCommand:test-explorer.run",
     "onCommand:test-explorer.run-all"
   ],

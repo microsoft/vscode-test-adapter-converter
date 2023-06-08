@@ -15,6 +15,7 @@ import {
 export const metadata = new WeakMap<vscode.TestItem, ITestMetadata>();
 
 export interface ITestMetadata {
+  isSuite: boolean;
   converter: TestConverter;
 }
 
@@ -161,7 +162,9 @@ export class TestConverter implements vscode.Disposable {
       const queue: Iterable<vscode.TestItem>[] = [testsToRun!];
       while (queue.length) {
         for (const test of queue.pop()!) {
-          run.enqueued(test);
+          if (!metadata.get(test)?.isSuite) {
+            run.enqueued(test);
+          }
           queue.push(gatherChildren(test.children));
         }
       }
@@ -211,7 +214,7 @@ export class TestConverter implements vscode.Disposable {
       item.label,
       item.file ? fileToUri(item.file) : defaultUri
     );
-    metadata.set(test, { converter: this });
+    metadata.set(test, { isSuite: item.type === 'suite', converter: this });
     this.itemsById.set(item.id, test);
     test.description = item.description;
 

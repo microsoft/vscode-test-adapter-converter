@@ -2,7 +2,7 @@
 
 This is an extension that converts from the [Test Explorer UI](https://marketplace.visualstudio.com/items?itemName=hbenl.vscode-test-explorer) API into native VS Code testing. You can use this by setting `testExplorer.useNativeTesting: true` in your user settings.
 
-![Test Adapter Conversion Logo](logo.png)
+<img src="logo.png" width="200" />
 
 ## Contributing
 

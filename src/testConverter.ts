@@ -197,7 +197,8 @@ export class TestConverter implements vscode.Disposable {
       this.syncItemChildren(this.controller.items, evt.suite.children);
     } else if (evt.errorMessage) {
       const test = this.controller.createTestItem('error', 'Test discovery failed');
-      this._error = evt.errorMessage;
+      this._error =
+        evt.errorMessage + '\n\n\n' + new Error().stack?.replace('Error:', 'Stacktrace:');
       test.error = new vscode.MarkdownString(
         `[View details](command:testExplorerConverter.showError?${encodeURIComponent(
           JSON.stringify([this.controllerId])

@@ -25,6 +25,19 @@ export class TestConverterFactory implements AdapterTestController, vscode.Dispo
   }
 
   /**
+   * Gets a TestConverter by its controller ID.
+   */
+  public getByControllerId(id: string) {
+    for (const converter of this.converters.values()) {
+      if (converter.controllerId === id) {
+        return converter;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
    * @inheritdoc
    */
   public dispose() {

@@ -42,6 +42,11 @@ export class TestConverter implements vscode.Disposable {
   private readonly tasksByRunId = new Map<string, vscode.TestRun>();
   private readonly runningSuiteByRunId = new Map<string, vscode.TestItem>();
   private readonly disposables: vscode.Disposable[] = [];
+  private _error?: string;
+
+  public get error() {
+    return this._error;
+  }
 
   public get controllerId() {
     return this.controller.id;
@@ -192,7 +197,13 @@ export class TestConverter implements vscode.Disposable {
       this.syncItemChildren(this.controller.items, evt.suite.children);
     } else if (evt.errorMessage) {
       const test = this.controller.createTestItem('error', 'Test discovery failed');
-      test.error = evt.errorMessage;
+      this._error = evt.errorMessage;
+      test.error = new vscode.MarkdownString(
+        `[View details](command:testExplorerConverter.showError?${encodeURIComponent(
+          JSON.stringify([this.controllerId])
+        )})`
+      );
+      test.error.isTrusted = true;
       this.controller.items.replace([test]);
     }
   }

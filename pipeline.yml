@@ -1,0 +1,40 @@
+trigger:
+  branches:
+    include:
+      - main
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: main
+      endpoint: Monaco
+
+parameters:
+  - name: publishExtension
+    displayName: 🚀 Publish Extension
+    type: boolean
+    default: false
+
+extends:
+  template: azure-pipelines/extension/stable.yml@templates
+  parameters:
+    buildSteps:
+      - script: yarn install --frozen-lockfile
+        displayName: Install dependencies
+
+      - script: yarn test
+        displayName: Test
+
+      - script: yarn run vscode:prepublish
+        displayName: Compile
+
+    tsa:
+      config:
+        areaPath: 'Visual Studio Code Miscellaneous Extensions'
+        serviceTreeID: 'c8cb03c6-176e-40dd-90a5-518de08666dc'
+      enabled: true
+
+    publishExtension: ${{ parameters.publishExtension }}

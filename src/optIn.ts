@@ -5,19 +5,22 @@
 import * as vscode from 'vscode';
 import { TestAdapter, TestController as TestAdapterController } from 'vscode-test-adapter-api';
 
-const promptStorageKey = 'promptedToUseNative';
+const didGloballyEnableKey = 'didAutoGloballyEnable';
+const promptStorageKey = 'promptedToUseNative2';
 let promptedThisSession = false;
 export const useNativeTestingConfig = 'testExplorer.useNativeTesting';
 
 export const usingNativeTesting = () =>
   !!vscode.workspace.getConfiguration().get(useNativeTestingConfig, false);
 
-export const switchToNativeTesting = (target = vscode.ConfigurationTarget.Global) => {
+export const switchToNativeTesting = (target = vscode.ConfigurationTarget.Global, silent = false) => {
   const config = vscode.workspace.getConfiguration();
   config.update(useNativeTestingConfig, true, target);
-  vscode.window.showInformationMessage(
-    'Thanks for taking native testing for a spin! If you run into problems, you can turn the new experience off with the "testExplorer.useNativeTesting" setting.'
-  );
+  if (!silent) {
+    vscode.window.showInformationMessage(
+      'Thanks for taking native testing for a spin! If you run into problems, you can turn the new experience off with the "testExplorer.useNativeTesting" setting.'
+    );
+  }
 };
 
 export const shouldPromptForNativeTesting = () => !usingNativeTesting();
@@ -29,6 +32,11 @@ export class OptInController implements TestAdapterController {
   public registerTestAdapter(adapter: TestAdapter): void {
     if (!this.shouldPrompt()) {
       return;
+    }
+
+    if (!this.context.globalState.get(didGloballyEnableKey) && !usingNativeTesting()) {
+      this.context.globalState.update(didGloballyEnableKey, true);
+      switchToNativeTesting(undefined, true);
     }
 
     adapter.testStates(evt => {

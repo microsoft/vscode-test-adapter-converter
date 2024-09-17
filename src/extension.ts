@@ -16,7 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
   let factory: TestConverterFactory | undefined;
 
   const optIn = new OptInController(context);
-  if (vscode.env.appName.toLowerCase().includes('insiders') && optIn.shouldPrompt()) {
+  if (optIn.shouldPrompt()) {
     setTimeout(() => {
       const testHub = vscode.extensions.getExtension<TestHub>(testExplorerExtensionId)?.exports;
 

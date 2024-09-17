@@ -62,39 +62,60 @@ export class TestConverter implements vscode.Disposable {
 
     const makeRunHandler =
       (debug: boolean) => (request: vscode.TestRunRequest, token: vscode.CancellationToken) => {
-        if (!request.include) {
-          this.run(this.controller.createTestRun(request), request.include, debug, token);
-          return;
-        }
-
-        const involved = new Map<TestConverter, vscode.TestItem[]>();
-        for (const test of request.include) {
-          const converter = metadata.get(test)!.converter;
-          const i = involved.get(converter);
-          if (i) {
-            i.push(test);
-          } else {
-            involved.set(converter, [test]);
-          }
-        }
-
-        for (const [converter, tests] of involved) {
-          converter.run(this.controller.createTestRun(request), tests, debug, token);
+        if (request.continuous && adapter.retire) {
+          const disposables = [
+            adapter.retire(evt => {
+              runOrDebug(debug, request, evt.tests?.map(id => this.itemsById.get(id)).filter(d => !!d), token);
+            }),
+            token.onCancellationRequested(() => disposables.forEach(d => d.dispose())),
+          ];
+        } else {
+          runOrDebug(debug, request, request.include, token);
         }
       };
 
-    this.controller.createRunProfile(
+    const runOrDebug = (
+      debug: boolean,
+      request: vscode.TestRunRequest,
+      include: readonly vscode.TestItem[] | undefined,
+      token: vscode.CancellationToken
+    ) => {
+      if (!include) {
+        this.run(this.controller.createTestRun(request), include, debug, token);
+        return;
+      }
+
+      const involved = new Map<TestConverter, vscode.TestItem[]>();
+      for (const test of include) {
+        const converter = metadata.get(test)!.converter;
+        const i = involved.get(converter);
+        if (i) {
+          i.push(test);
+        } else {
+          involved.set(converter, [test]);
+        }
+      }
+
+      for (const [converter, tests] of involved) {
+        converter.run(this.controller.createTestRun(request), tests, debug, token);
+      }
+    };
+
+    const run = this.controller.createRunProfile(
       'Run',
       vscode.TestRunProfileKind.Run,
       makeRunHandler(false),
       true
     );
-    this.controller.createRunProfile(
+    run.supportsContinuousRun = !!adapter.retire;
+
+    const debug = this.controller.createRunProfile(
       'Debug',
       vscode.TestRunProfileKind.Debug,
       makeRunHandler(true),
       true
     );
+    debug.supportsContinuousRun = !!adapter.retire;
 
     this.disposables.push(
       adapter.tests(evt => {

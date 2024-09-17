@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "target": "ES2019",
+    "target": "ES2022",
     "outDir": "out",
-    "lib": ["ES2019", "WebWorker"],
+    "lib": ["ES2023", "WebWorker"],
     "sourceMap": true,
     "rootDir": "src",
     "strict": true /* enable all strict type-checking options */,

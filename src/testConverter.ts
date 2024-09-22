@@ -160,6 +160,16 @@ export class TestConverter implements vscode.Disposable {
         }
       })
     );
+    if (adapter.retire) {
+      this.disposables.push(adapter.retire(evt => {
+        if (evt.tests) {
+          const items = evt.tests.map(test => this.itemsById.get(test)).filter(item => !!item);
+          this.controller.invalidateTestResults(items);
+        } else {
+          this.controller.invalidateTestResults();
+        }
+      }));
+    }
   }
 
   public dispose() {

@@ -2,6 +2,7 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
+import { parse as parseStack } from 'stacktrace-parser';
 import * as vscode from 'vscode';
 import {
   TestAdapter,
@@ -35,6 +36,47 @@ const unique = <T, R>(arr: readonly T[], project: (v: T) => R): T[] => {
 const testViewId = 'workbench.view.extension.test';
 let nextControllerId = 1;
 
+const getControllerName = () => {
+  /* The test explorer extension doesn't tell us the name of the controller
+  creating the profiles. But, it is in the stacktrace! So try to parse it out. Example:
+
+  Error:
+    at eval (eval-5a7aa349.repl:1:1)
+    at new TestConverter (c:\\Users\\conno\\Github\\vscode-test-adapter-converter\\out\\extension.js:142:5)
+    at TestConverterFactory.registerTestAdapter (c:\\Users\\conno\\Github\\vscode-test-adapter-converter\\out\\extension.js:415:34)
+    at TestHub.registerTestAdapter (c:\\Users\\conno\\.vscode-insiders\\extensions\\hbenl.vscode-test-explorer-2.22.1\\out\\hub\\testHub.js:42:24)
+    at Object.registerTestAdapter (c:\\Users\\conno\\.vscode-insiders\\extensions\\hbenl.vscode-test-explorer-2.22.1\\out\\main.js:106:45)
+    at TestAdapterRegistrar.add (c:\\Users\\conno\\.vscode-insiders\\extensions\\hbenl.vscode-mocha-test-adapter-2.14.1\\node_modules\\vscode-test-adapter-util\\out\\registrar.js:48:22)
+    at new TestAdapterRegistrar (c:\\Users\\conno\\.vscode-insiders\\extensions\\hbenl.vscode-mocha-test-adapter-2.14.1\\node_modules\\vscode-test-adapter-util\\out\\registrar.js:19:22)
+  */
+
+  const stack = parseStack(new Error().stack || '');
+  for (const frame of stack) {
+    if (!frame.file) {
+      continue;
+    }
+
+    const parts = frame.file.split(/[\\/]/g);
+    const extensionsIndex = parts.indexOf('extensions');
+    if (extensionsIndex === -1) {
+      continue;
+    }
+
+    const extensionAndVersionPart = parts[extensionsIndex + 1];
+    const extensionId = extensionAndVersionPart.replace(/-[\d.]+$/, '');
+    if (
+      extensionId.includes('vscode-test-explorer') ||
+      extensionId.includes('test-adapter-converter')
+    ) {
+      continue;
+    }
+
+    return extensionId;
+  }
+
+  return 'Test Adapter Converter';
+};
+
 export class TestConverter implements vscode.Disposable {
   private readonly controller: vscode.TestController;
   private doneDiscovery?: () => void;
@@ -55,7 +97,7 @@ export class TestConverter implements vscode.Disposable {
   constructor(private readonly adapter: TestAdapter) {
     this.controller = vscode.tests.createTestController(
       `test-adapter-ctrl-${nextControllerId++}`,
-      ''
+      getControllerName()
     );
     this.controller.refreshHandler = () => this.adapter.load();
     this.disposables.push(this.controller);
@@ -65,7 +107,12 @@ export class TestConverter implements vscode.Disposable {
         if (request.continuous && adapter.retire) {
           const disposables = [
             adapter.retire(evt => {
-              runOrDebug(debug, request, evt.tests?.map(id => this.itemsById.get(id)).filter(d => !!d), token);
+              runOrDebug(
+                debug,
+                request,
+                evt.tests?.map(id => this.itemsById.get(id)).filter(d => !!d),
+                token
+              );
             }),
             token.onCancellationRequested(() => disposables.forEach(d => d.dispose())),
           ];
@@ -161,14 +208,16 @@ export class TestConverter implements vscode.Disposable {
       })
     );
     if (adapter.retire) {
-      this.disposables.push(adapter.retire(evt => {
-        if (evt.tests) {
-          const items = evt.tests.map(test => this.itemsById.get(test)).filter(item => !!item);
-          this.controller.invalidateTestResults(items);
-        } else {
-          this.controller.invalidateTestResults();
-        }
-      }));
+      this.disposables.push(
+        adapter.retire(evt => {
+          if (evt.tests) {
+            const items = evt.tests.map(test => this.itemsById.get(test)).filter(item => !!item);
+            this.controller.invalidateTestResults(items);
+          } else {
+            this.controller.invalidateTestResults();
+          }
+        })
+      );
     }
   }
 

@@ -3,7 +3,7 @@
   "displayName": "Test Adapter Converter",
   "description": "Converter extension from the Test Adapter UI to native VS Code testing",
   "publisher": "ms-vscode",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "engines": {
     "vscode": "^1.93.0"
   },

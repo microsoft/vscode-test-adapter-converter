@@ -5,6 +5,7 @@
   "publisher": "ms-vscode",
   "version": "0.2.1",
   "engines": {
+    "node": "22",
     "vscode": "^1.93.0"
   },
   "capabilities": {
@@ -56,7 +57,7 @@
   "homepage": "https://github.com/microsoft/vscode-test-adapter-converter#readme",
   "scripts": {
     "vscode:prepublish": "npm run -S esbuild-base -- --minify",
-    "esbuild-base": "rimraf out && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node20",
+    "esbuild-base": "rimraf out && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node22",
     "build": "npm run -S esbuild-base -- --sourcemap",
     "watch": "npm run -S esbuild-base -- --sourcemap --watch",
     "fmt": "prettier --write \"src/**/*.ts\"&& npm run test -- --fix",
@@ -64,10 +65,12 @@
   },
   "devDependencies": {
     "@types/vscode": "^1.93.0",
-    "@typescript-eslint/eslint-plugin": "^5.47.1",
-    "@typescript-eslint/parser": "^5.47.1",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "typescript-eslint": "^8.0.0",
     "esbuild": "^0.25.0",
-    "eslint": "^8.30.0",
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
     "eslint-plugin-header": "^3.1.1",
     "prettier": "^2.8.1",
     "rimraf": "^3.0.2",

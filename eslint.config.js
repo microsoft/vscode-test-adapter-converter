@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 const tseslint = require('typescript-eslint');
-const headerPlugin = require('eslint-plugin-header');
+const headersPlugin = require('eslint-plugin-headers');
 
 module.exports = tseslint.config(
 	tseslint.configs.recommended,
 	{
 		plugins: {
-			header: headerPlugin,
+			headers: headersPlugin,
 		},
 		files: ['src/**/*.ts'],
 		ignores: ['**/*.d.ts', '**/*.test.ts', '**/*.js'],
@@ -19,10 +19,15 @@ module.exports = tseslint.config(
 			'@typescript-eslint/explicit-function-return-type': 'off',
 			'@typescript-eslint/no-non-null-assertion': 'off',
 			'@typescript-eslint/explicit-module-boundary-types': 'off',
-			'header/header': [
+			'headers/header-format': [
 				'error',
-				'block',
-				'---------------------------------------------------------\n * Copyright (C) Microsoft Corporation. All rights reserved.\n *--------------------------------------------------------',
+				{
+					source: 'string',
+					style: 'jsdoc',
+					content: 'Copyright (C) Microsoft Corporation. All rights reserved.',
+					blockPrefix: '---------------------------------------------------------\n',
+					blockSuffix: '\n *--------------------------------------------------------',
+				},
 			],
 		},
 	},

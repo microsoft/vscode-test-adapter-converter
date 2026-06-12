@@ -6,7 +6,7 @@
   "version": "0.2.1",
   "engines": {
     "node": "22",
-    "vscode": "^1.93.0"
+    "vscode": "^1.124.0"
   },
   "capabilities": {
     "untrustedWorkspaces": {
@@ -64,7 +64,7 @@
     "test": "eslint src --ext ts && tsc --noEmit"
   },
   "devDependencies": {
-    "@types/vscode": "^1.110.0",
+    "@types/vscode": "^1.120.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "typescript-eslint": "^8.0.0",
